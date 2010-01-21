@@ -46,6 +46,7 @@ func TestBasic(t *testing.T) {
 }
 
 func setget(t *testing.T, i int) {
+
     s := strconv.Itoa(i)
     err := client.Set(s, strings.Bytes(s))
     if err != nil {
@@ -61,7 +62,14 @@ func setget(t *testing.T, i int) {
     if s != string(s2) {
         t.Fatal("Concurrent: value not the same")
     }
+
     client.Del(s)
+}
+
+func TestEmptyGet(t *testing.T) {
+    println("testing empty get!!")
+    data, err := client.Get("failerer")
+    println(data, err)
 }
 
 func TestConcurrent(t *testing.T) {

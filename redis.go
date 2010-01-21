@@ -59,12 +59,6 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
     lr := io.LimitReader(reader, int64(size))
     data, err = ioutil.ReadAll(lr)
 
-    //read the end line
-    _, err = reader.ReadString('\n')
-    if err != nil {
-        return nil, err
-    }
-
     return data, err
 }
 
@@ -99,6 +93,11 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
         res := make([][]byte, size)
         for i := 0; i < size; i++ {
             res[i], err = readBulk(reader, "")
+            if err != nil {
+                return nil, err
+            }
+            //read the end line
+            _, err = reader.ReadString('\n')
             if err != nil {
                 return nil, err
             }
