@@ -1,6 +1,8 @@
 package redis
 
 import (
+    //"fmt"
+    "os"
     "runtime"
     "strconv"
     "strings"
@@ -21,14 +23,17 @@ func init() { runtime.GOMAXPROCS(2) }
 func TestBasic(t *testing.T) {
     client.Set("a", strings.Bytes("hello"))
 
-    val, err := client.Get("a")
+    var val []byte
+    var err os.Error
 
-    if err != nil {
-        t.Fatal(err.String())
+    if val, err = client.Get("a"); err != nil || string(val) != "hello" {
+        t.Fatal("get failed")
     }
 
-    if string(val) != "hello" {
-        t.Fatal("Not equal")
+    client.Del("a")
+
+    if ok, _ := client.Exists("a"); ok {
+        t.Fatal("Should be deleted")
     }
 }
 
@@ -54,6 +59,67 @@ func TestConcurrent(t *testing.T) {
     for i := 0; i < 20; i++ {
         go setget(t, i)
     }
+}
+
+
+func TestSet(t *testing.T) {
+    var err os.Error
+
+    vals := []string{"a", "b", "c", "d", "e"}
+
+    for _, v := range (vals) {
+        client.Sadd("s", strings.Bytes(v))
+    }
+
+    var members [][]byte
+
+    if members, err = client.Smembers("s"); err != nil || len(members) != 5 {
+        t.Fatal("Set setup failed", err.String())
+    }
+
+    for _, v := range (vals) {
+        if ok, err := client.Sismember("s", strings.Bytes(v)); err != nil || !ok {
+            t.Fatal("Sismember test failed")
+        }
+    }
+
+    for _, v := range (vals) {
+        if ok, err := client.Srem("s", strings.Bytes(v)); err != nil || !ok {
+            t.Fatal("Sismember test failed")
+        }
+    }
+
+    if members, err = client.Smembers("s"); err != nil || len(members) != 0 {
+        t.Fatal("Set setup failed", err.String())
+    }
+
+    client.Del("s")
+
+}
+
+func TestList(t *testing.T) {
+    //var err os.Error
+
+    vals := []string{"a", "b", "c", "d", "e"}
+
+    for _, v := range (vals) {
+        client.Rpush("l", strings.Bytes(v))
+    }
+
+    //var members [][]byte
+
+    if l, err := client.Llen("l"); err != nil || l != 5 {
+        t.Fatal("Llen failed", err.String())
+    }
+
+    for i := 0; i < len(vals); i++ {
+        if val, err := client.Lindex("l", i); err != nil || string(val) != vals[i] {
+            t.Fatal("Lindex failed", err.String())
+        }
+    }
+
+    client.Del("l")
+
 }
 
 /*

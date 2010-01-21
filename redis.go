@@ -20,8 +20,9 @@ var pool chan *net.TCPConn
 var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:6379")
 
 type Client struct {
-    Addr string
-    Db   int
+    Addr     string
+    Db       int
+    Password string
 }
 
 type RedisError string
@@ -55,6 +56,13 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
     size, err := strconv.Atoi(strings.TrimSpace(head[1:]))
     lr := io.LimitReader(reader, int64(size))
     data, err = ioutil.ReadAll(lr)
+
+    //read the end line
+    _, err = reader.ReadString('\n')
+    if err != nil {
+        return nil, err
+    }
+
     return data, err
 }
 
@@ -83,7 +91,6 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
 
     if line[0] == '*' {
         size, err := strconv.Atoi(strings.TrimSpace(line[1:]))
-
         if err != nil {
             return nil, RedisError("MultiBulk reply expected a number")
         }
@@ -117,7 +124,7 @@ func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error
     return data, nil
 }
 
-func (client *Client) send_command(cmd string) (data interface{}, err os.Error) {
+func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
     // grab a connection from the pool
     c := <-pool
 
@@ -132,7 +139,7 @@ func (client *Client) send_command(cmd string) (data interface{}, err os.Error) 
         c, err = net.DialTCP("tcp", nil, addr)
 
         if err != nil {
-            return nil, err
+            goto End
         }
     }
 
@@ -143,15 +150,17 @@ func (client *Client) send_command(cmd string) (data interface{}, err os.Error) 
         c, err = net.DialTCP("tcp", nil, addr)
 
         if err != nil {
-            return nil, err
+            goto End
         }
 
         data, err = client.rawSend(c, strings.Bytes(cmd))
 
         if err != nil {
-            return nil, err
+            goto End
         }
     }
+
+End:
 
     //add the client back to the queue
     pool <- c
@@ -162,7 +171,7 @@ func (client *Client) send_command(cmd string) (data interface{}, err os.Error) 
 
 func (client *Client) Get(name string) ([]byte, os.Error) {
     cmd := fmt.Sprintf("GET %s\r\n", name)
-    res, err := client.send_command(cmd)
+    res, err := client.sendCommand(cmd)
 
     if err != nil {
         return nil, err
@@ -172,17 +181,119 @@ func (client *Client) Get(name string) ([]byte, os.Error) {
     return data, nil
 }
 
-func (client *Client) Set(name string, data []byte) os.Error {
-    cmd := fmt.Sprintf("SET %s %d\r\n%s\r\n", name, len(data), data)
-    res, err := client.send_command(cmd)
+func (client *Client) Set(key string, val []byte) os.Error {
+    cmd := fmt.Sprintf("SET %s %d\r\n%s\r\n", key, len(val), val)
+    _, err := client.sendCommand(cmd)
 
     if err != nil {
         return err
     }
 
-    if res.(string) == "OK" {
-        return nil
+    return nil
+}
+
+func (client *Client) Del(name string) (bool, os.Error) {
+    cmd := fmt.Sprintf("DEL %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
     }
 
-    return RedisError("GET expected OK")
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Auth(password string) os.Error {
+    cmd := fmt.Sprintf("AUTH %s\r\n", password)
+    _, err := client.sendCommand(cmd)
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (client *Client) Exists(key string) (bool, os.Error) {
+    cmd := fmt.Sprintf("EXISTS %s\r\n", key)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return false, err
+    }
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Llen(name string) (int, os.Error) {
+    cmd := fmt.Sprintf("LLEN %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return -1, err
+    }
+
+    return res.(int), nil
+}
+
+func (client *Client) Lindex(name string, index int) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("LINDEX %s %d\r\n", name, index)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
+func (client *Client) Rpush(name string, value []byte) os.Error {
+    cmd := fmt.Sprintf("RPUSH %s %d\r\n%s\r\n", name, len(value), value)
+    _, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (client *Client) Sismember(name string, value []byte) (bool, os.Error) {
+    cmd := fmt.Sprintf("SISMEMBER %s %d\r\n%s\r\n", name, len(value), value)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
+    }
+
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Smembers(name string) ([][]byte, os.Error) {
+    cmd := fmt.Sprintf("SMEMBERS %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([][]byte), nil
+}
+
+func (client *Client) Sadd(name string, value []byte) (bool, os.Error) {
+    cmd := fmt.Sprintf("SADD %s %d\r\n%s\r\n", name, len(value), value)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
+    }
+
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Srem(name string, value []byte) (bool, os.Error) {
+    cmd := fmt.Sprintf("SREM %s %d\r\n%s\r\n", name, len(value), value)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
+    }
+
+    return res.(int) == 1, nil
 }
