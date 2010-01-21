@@ -6,14 +6,16 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	println("Testing basic")
+    println("Testing basic")
 
-	var client Client
-	client.Set("a", strings.Bytes("hello world"))
-	
-	val,err := client.Get("a")
+    var client Client
+    client.Set("a", strings.Bytes("hello world"))
 
-	if err != nil {
-		println(val)
-	}
+    val, err := client.Get("a")
+
+    if err != nil {
+        println(err.String())
+    }
+
+    println(string(val))
 }
