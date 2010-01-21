@@ -100,7 +100,24 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
     return readBulk(reader, line)
 }
 
-func (client *Client) send_command(cmd string) (interface{}, os.Error) {
+func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error) {
+    _, err := c.Write(cmd)
+
+    if err != nil {
+        return nil, err
+    }
+
+    reader := bufio.NewReader(c)
+
+    data, err := readResponse(reader)
+    if err != nil {
+        return nil, err
+    }
+
+    return data, nil
+}
+
+func (client *Client) send_command(cmd string) (data interface{}, err os.Error) {
     // grab a connection from the pool
     c := <-pool
 
@@ -112,14 +129,29 @@ func (client *Client) send_command(cmd string) (interface{}, os.Error) {
 
     //should also check if c is clsoed
     if c == nil {
-        c, _ = net.DialTCP("tcp", nil, addr)
+        c, err = net.DialTCP("tcp", nil, addr)
+
+        if err != nil {
+            return nil, err
+        }
     }
 
-    c.Write(strings.Bytes(cmd))
+    data, err = client.rawSend(c, strings.Bytes(cmd))
 
-    reader := bufio.NewReader(c)
+    //check if the connection was closed
+    if err == os.EOF {
+        c, err = net.DialTCP("tcp", nil, addr)
 
-    data, err := readResponse(reader)
+        if err != nil {
+            return nil, err
+        }
+
+        data, err = client.rawSend(c, strings.Bytes(cmd))
+
+        if err != nil {
+            return nil, err
+        }
+    }
 
     //add the client back to the queue
     pool <- c
@@ -148,7 +180,6 @@ func (client *Client) Set(name string, data []byte) os.Error {
         return err
     }
 
-    //check if res is a string?
     if res.(string) == "OK" {
         return nil
     }
