@@ -2,6 +2,8 @@ package redis
 
 import (
     "bufio"
+    "bytes"
+    "container/vector"
     "fmt"
     "io"
     "io/ioutil"
@@ -201,6 +203,33 @@ func (client *Client) Del(name string) (bool, os.Error) {
     }
 
     return res.(int) == 1, nil
+}
+
+func (client *Client) Keys(pattern string) ([]string, os.Error) {
+    cmd := fmt.Sprintf("KEYS %s\r\n", pattern)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return nil, err
+    }
+
+    keys := bytes.Fields(res.([]byte))
+    var ret vector.StringVector
+    for _, k := range (keys) {
+        ret.Push(string(k))
+    }
+    return ret, nil
+}
+
+func (client *Client) Type(key string) (string, os.Error) {
+    cmd := fmt.Sprintf("TYPE %s\r\n", key)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return "", err
+    }
+
+    return res.(string), nil
 }
 
 func (client *Client) Auth(password string) os.Error {

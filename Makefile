@@ -13,4 +13,5 @@ include $(GOROOT)/src/Make.pkg
 format:
 	gofmt -spaces=true -tabindent=false -tabwidth=4 -w redis.go
 	gofmt -spaces=true -tabindent=false -tabwidth=4 -w redis_test.go
+	gofmt -spaces=true -tabindent=false -tabwidth=4 -w redis-load.go
 

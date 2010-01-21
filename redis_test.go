@@ -30,6 +30,14 @@ func TestBasic(t *testing.T) {
         t.Fatal("get failed")
     }
 
+    if typ, err := client.Type("a"); err != nil || typ != "string" {
+        t.Fatal("type failed", typ)
+    }
+
+    if keys, err := client.Keys("*"); err != nil || len(keys) != 1 {
+        t.Fatal("keys failed", keys)
+    }
+
     client.Del("a")
 
     if ok, _ := client.Exists("a"); ok {
@@ -53,6 +61,7 @@ func setget(t *testing.T, i int) {
     if s != string(s2) {
         t.Fatal("Concurrent: value not the same")
     }
+    client.Del(s)
 }
 
 func TestConcurrent(t *testing.T) {
@@ -121,6 +130,7 @@ func TestList(t *testing.T) {
     client.Del("l")
 
 }
+
 
 /*
 func TestTimeout(t *testing.T) {
