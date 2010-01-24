@@ -11,14 +11,14 @@ import (
 func dump_db(port int, db int, output io.Writer) {
     var client redis.Client
 
-	if port != 0 {
-    	client.Addr = "127.0.0.1:"+strconv.Itoa(port);
+    if port != 0 {
+        client.Addr = "127.0.0.1:" + strconv.Itoa(port)
     }
-    
+
     if db != 0 {
-    	fmt.Fprintf(output, "SELECT %d\r\n", db)
-	}
-	
+        client.Db = db
+    }
+
     keys, err := client.Keys("*")
 
     if err != nil {
@@ -27,7 +27,7 @@ func dump_db(port int, db int, output io.Writer) {
     }
 
     fmt.Fprintf(output, "FLUSHDB\r\n")
-	
+
     for _, key := range (keys) {
         typ, _ := client.Type(key)
 
@@ -50,41 +50,39 @@ func dump_db(port int, db int, output io.Writer) {
 
 }
 
-func usage() {
-	println("redis-dump [-p port] [-db num]")
-}
+func usage() { println("redis-dump [-p port] [-db num]") }
 
-func main() { 
+func main() {
 
-	var err os.Error
-	
-	db := 0
-	port := 6379
-	
-	args := os.Args[1:]
-	
-	for i:=0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "-p" && i < len(args) - 1 {
-			if port,err = strconv.Atoi(args[i+1]); err != nil {
-				println(err.String())
-				return
-			}
-			i+=1
-			continue
-		} else if arg == "-db" && i < len(args) - 1 {
-			if db,err = strconv.Atoi(args[i+1]); err != nil {
-				println(err.String())
-				return
-			}
-			i+=1
-			continue
-		} else {
-			println("Invalid argument: ", arg)
-			usage()
-			return
-		}
-	}
-	
-	dump_db(port, db, os.Stdout) 
+    var err os.Error
+
+    db := 0
+    port := 6379
+
+    args := os.Args[1:]
+
+    for i := 0; i < len(args); i++ {
+        arg := args[i]
+        if arg == "-p" && i < len(args)-1 {
+            if port, err = strconv.Atoi(args[i+1]); err != nil {
+                println(err.String())
+                return
+            }
+            i += 1
+            continue
+        } else if arg == "-db" && i < len(args)-1 {
+            if db, err = strconv.Atoi(args[i+1]); err != nil {
+                println(err.String())
+                return
+            }
+            i += 1
+            continue
+        } else {
+            println("Invalid argument: ", arg)
+            usage()
+            return
+        }
+    }
+
+    dump_db(port, db, os.Stdout)
 }

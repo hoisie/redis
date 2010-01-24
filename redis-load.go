@@ -10,23 +10,23 @@ import "strings"
 //import "redis"
 
 func load_db(port int, db int, reader *bufio.Reader) {
-	addr := "127.0.0.1:6379"
-	
-	if port != 0 {
-		addr = "127.0.0.1:"+strconv.Itoa(port)
-	}
-	
+    addr := "127.0.0.1:6379"
+
+    if port != 0 {
+        addr = "127.0.0.1:" + strconv.Itoa(port)
+    }
+
     c, err := net.Dial("tcp", "", addr)
-    
+
     if err != nil {
-    	println(err.String())
-    	return
+        println(err.String())
+        return
     }
-    
+
     if db != 0 {
-    	fmt.Fprintf(c, "SELECT %d\r\n", db)
+        fmt.Fprintf(c, "SELECT %d\r\n", db)
     }
-    
+
     for {
         line, err := reader.ReadBytes('\n')
         if err == os.EOF {
@@ -47,42 +47,40 @@ func load_db(port int, db int, reader *bufio.Reader) {
     }
 }
 
-func usage() {
-	println("redis-load [-p port] [-db num]")
-}
+func usage() { println("redis-load [-p port] [-db num]") }
 
-func main() { 
+func main() {
 
-	var err os.Error
-	
-	db := 0
-	port := 6379
-	
-	args := os.Args[1:]
-	
-	for i:=0; i < len(args); i++ {
-		arg := args[i]
-		if arg == "-p" && i < len(args) - 1 {
-			if port,err = strconv.Atoi(args[i+1]); err != nil {
-				println(err.String())
-				return
-			}
-			i+=1
-			continue
-		} else if arg == "-db" && i < len(args) - 1 {
-			if db,err = strconv.Atoi(args[i+1]); err != nil {
-				println(err.String())
-				return
-			}
-			i+=1
-			continue
-		} else {
-			println("Invalid argument: ", arg)
-			usage()
-			return
-		}
-	}
-	println("port", port, db)
-	load_db(port, db, bufio.NewReader(os.Stdin)) 
+    var err os.Error
+
+    db := 0
+    port := 6379
+
+    args := os.Args[1:]
+
+    for i := 0; i < len(args); i++ {
+        arg := args[i]
+        if arg == "-p" && i < len(args)-1 {
+            if port, err = strconv.Atoi(args[i+1]); err != nil {
+                println(err.String())
+                return
+            }
+            i += 1
+            continue
+        } else if arg == "-db" && i < len(args)-1 {
+            if db, err = strconv.Atoi(args[i+1]); err != nil {
+                println(err.String())
+                return
+            }
+            i += 1
+            continue
+        } else {
+            println("Invalid argument: ", arg)
+            usage()
+            return
+        }
+    }
+    println("port", port, db)
+    load_db(port, db, bufio.NewReader(os.Stdin))
 
 }

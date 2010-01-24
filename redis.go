@@ -56,6 +56,10 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
     }
 
     size, err := strconv.Atoi(strings.TrimSpace(head[1:]))
+
+    if size == -1 {
+        return nil, RedisError("Key does not exist ")
+    }
     lr := io.LimitReader(reader, int64(size))
     data, err = ioutil.ReadAll(lr)
 
@@ -64,6 +68,7 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
 
 func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
     line, err := reader.ReadString('\n')
+
     if err != nil {
         return nil, err
     }
@@ -109,6 +114,7 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
 }
 
 func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error) {
+
     _, err := c.Write(cmd)
 
     if err != nil {
@@ -125,41 +131,60 @@ func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error
     return data, nil
 }
 
-func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
-    // grab a connection from the pool
-    c := <-pool
+func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
 
     var addr = defaultAddr
 
     if client.Addr != "" {
-        addr, _ = net.ResolveTCPAddr(client.Addr)
+        addr, err = net.ResolveTCPAddr(client.Addr)
+
+        if err != nil {
+            return
+        }
+
     }
 
-    //should also check if c is clsoed
-    if c == nil {
-        c, err = net.DialTCP("tcp", nil, addr)
+    c, err = net.DialTCP("tcp", nil, addr)
 
+    if err != nil {
+        return
+    }
+
+    if client.Db != 0 {
+        cmd := fmt.Sprintf("SELECT %d\r\n", client.Db)
+        _, err = client.rawSend(c, strings.Bytes(cmd))
+        if err != nil {
+            return
+        }
+    }
+
+    return
+}
+
+
+func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
+    // grab a connection from the pool
+    c := <-pool
+
+    if c == nil {
+        c, err = client.openConnection()
+        if err != nil {
+            goto End
+        }
+    }
+
+    //test the connection
+    _, err = c.Read([]byte{})
+
+    //check if the connection was closed
+    if err == os.EOF {
+        c, err = client.openConnection()
         if err != nil {
             goto End
         }
     }
 
     data, err = client.rawSend(c, strings.Bytes(cmd))
-
-    //check if the connection was closed
-    if err == os.EOF {
-        c, err = net.DialTCP("tcp", nil, addr)
-
-        if err != nil {
-            goto End
-        }
-
-        data, err = client.rawSend(c, strings.Bytes(cmd))
-
-        if err != nil {
-            goto End
-        }
-    }
 
 End:
 
@@ -168,7 +193,6 @@ End:
 
     return data, err
 }
-
 
 func (client *Client) Get(name string) ([]byte, os.Error) {
     cmd := fmt.Sprintf("GET %s\r\n", name)
