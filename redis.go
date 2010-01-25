@@ -173,18 +173,17 @@ func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
         }
     }
 
-    //test the connection
-    _, err = c.Read([]byte{})
+    data, err = client.rawSend(c, strings.Bytes(cmd))
 
-    //check if the connection was closed
     if err == os.EOF {
+        println("got eof")
         c, err = client.openConnection()
         if err != nil {
             goto End
         }
-    }
 
-    data, err = client.rawSend(c, strings.Bytes(cmd))
+        data, err = client.rawSend(c, strings.Bytes(cmd))
+    }
 
 End:
 
