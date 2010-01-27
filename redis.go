@@ -195,10 +195,10 @@ End:
 
 func (client *Client) Get(name string) ([]byte, os.Error) {
     cmd := fmt.Sprintf("GET %s\r\n", name)
-    res, err := client.sendCommand(cmd)
+    res, _ := client.sendCommand(cmd)
 
-    if err != nil {
-        return nil, err
+    if res == nil {
+        return nil, RedisError("Key `"+name+"` does not exist")
     }
 
     data := res.([]byte)
