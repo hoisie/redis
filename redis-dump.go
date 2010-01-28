@@ -19,6 +19,8 @@ func dump_db(port int, db int, output io.Writer) {
         client.Db = db
     }
 
+    fmt.Fprintf(output, "FLUSHDB\r\n")
+
     keys, err := client.Keys("*")
 
     if err != nil {
@@ -26,7 +28,6 @@ func dump_db(port int, db int, output io.Writer) {
         return
     }
 
-    fmt.Fprintf(output, "FLUSHDB\r\n")
 
     for _, key := range (keys) {
         typ, _ := client.Type(key)

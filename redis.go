@@ -67,12 +67,22 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
 }
 
 func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
-    line, err := reader.ReadString('\n')
 
-    if err != nil {
-        return nil, err
+    var line string
+    var err os.Error
+
+    //read until the first non-whitespace line
+    for {
+    	line, err = reader.ReadString('\n')
+    	if len(line) == 0 || err != nil {
+            return nil, err
+    	}
+    	line = strings.TrimSpace(line)
+        if len(line) > 0 {
+            break
+        }
     }
-
+     
     if line[0] == '+' {
         return strings.TrimSpace(line[1:]), nil
     }
@@ -176,7 +186,6 @@ func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
     data, err = client.rawSend(c, strings.Bytes(cmd))
 
     if err == os.EOF {
-        println("got eof")
         c, err = client.openConnection()
         if err != nil {
             goto End
