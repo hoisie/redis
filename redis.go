@@ -73,16 +73,16 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
 
     //read until the first non-whitespace line
     for {
-    	line, err = reader.ReadString('\n')
-    	if len(line) == 0 || err != nil {
+        line, err = reader.ReadString('\n')
+        if len(line) == 0 || err != nil {
             return nil, err
-    	}
-    	line = strings.TrimSpace(line)
+        }
+        line = strings.TrimSpace(line)
         if len(line) > 0 {
             break
         }
     }
-     
+
     if line[0] == '+' {
         return strings.TrimSpace(line[1:]), nil
     }
@@ -207,7 +207,7 @@ func (client *Client) Get(name string) ([]byte, os.Error) {
     res, _ := client.sendCommand(cmd)
 
     if res == nil {
-        return nil, RedisError("Key `"+name+"` does not exist")
+        return nil, RedisError("Key `" + name + "` does not exist")
     }
 
     data := res.([]byte)
@@ -301,6 +301,16 @@ func (client *Client) Lindex(name string, index int) ([]byte, os.Error) {
     }
 
     return res.([]byte), nil
+}
+
+func (client *Client) Lset(name string, index int, value []byte) os.Error {
+    cmd := fmt.Sprintf("LSET %s %d %d\r\n%s\r\n", name, index, len(value), value)
+    _, err := client.sendCommand(cmd)
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
 
 func (client *Client) Rpush(name string, value []byte) os.Error {

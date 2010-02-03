@@ -21,6 +21,7 @@ var client Client
 func init() {
     runtime.GOMAXPROCS(2)
     client.Addr = "127.0.0.1:7379"
+    client.Db = 13
 }
 
 func TestBasic(t *testing.T) {
@@ -134,14 +135,24 @@ func TestList(t *testing.T) {
         client.Rpush("l", strings.Bytes(v))
     }
 
-    //var members [][]byte
-
     if l, err := client.Llen("l"); err != nil || l != 5 {
         t.Fatal("Llen failed", err.String())
     }
 
     for i := 0; i < len(vals); i++ {
         if val, err := client.Lindex("l", i); err != nil || string(val) != vals[i] {
+            t.Fatal("Lindex failed", err.String())
+        }
+    }
+
+    for i := 0; i < len(vals); i++ {
+        if err := client.Lset("l", i, strings.Bytes("a")); err != nil {
+            t.Fatal("Lset failed", err.String())
+        }
+    }
+
+    for i := 0; i < len(vals); i++ {
+        if val, err := client.Lindex("l", i); err != nil || string(val) != "a" {
             t.Fatal("Lindex failed", err.String())
         }
     }

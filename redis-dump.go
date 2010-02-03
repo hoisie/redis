@@ -28,7 +28,6 @@ func dump_db(port int, db int, output io.Writer) {
         return
     }
 
-
     for _, key := range (keys) {
         typ, _ := client.Type(key)
 
