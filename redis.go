@@ -282,6 +282,89 @@ func (client *Client) Exists(key string) (bool, os.Error) {
     return res.(int) == 1, nil
 }
 
+func (client *Client) Rename(src string, dst string) os.Error {
+    cmd := fmt.Sprintf("RENAME %s %s\r\n", src, dst)
+
+    _, err := client.sendCommand(cmd)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
+func (client *Client) Renamenx(src string, dst string) (bool, os.Error) {
+    cmd := fmt.Sprintf("RENAMENX %s %s\r\n", src, dst)
+
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return false, err
+    }
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Randomkey() (string, os.Error) {
+    res, err := client.sendCommand("RANDOMKEY\r\n")
+    if err != nil {
+        return "", err
+    }
+    return res.(string), nil
+}
+
+func (client *Client) Dbsize() (int64, os.Error) {
+    res, err := client.sendCommand("DBSIZE\r\n")
+    if err != nil {
+        return -1, err
+    }
+
+    return res.(int64), nil
+}
+
+func (client *Client) Expire(key string, time int64) (bool, os.Error) {
+    cmd := fmt.Sprintf("EXPIRE %s %d\r\n", key, time)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
+    }
+
+    return res.(int64) == 1, nil
+}
+
+func (client *Client) Ttl(key string) (int64, os.Error) {
+    cmd := fmt.Sprintf("TTL %s\r\n", key)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return -1, err
+    }
+
+    return res.(int64), nil
+}
+
+func (client *Client) Move(key string, dbnum int) (bool, os.Error) {
+    cmd := fmt.Sprintf("MOVE %s %d\r\n", key, dbnum)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return false, err
+    }
+
+    return res.(int) == 1, nil
+}
+
+func (client *Client) Flush(all bool) os.Error {
+    var cmd string
+    if all {
+        cmd = "FLUSHALL\r\n"
+    } else {
+        cmd = "FLUSHDB\r\n"
+    }
+    _, err := client.sendCommand(cmd)
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
 func (client *Client) Llen(name string) (int, os.Error) {
     cmd := fmt.Sprintf("LLEN %s\r\n", name)
     res, err := client.sendCommand(cmd)
