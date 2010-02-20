@@ -95,7 +95,7 @@ func TestSet(t *testing.T) {
 
     vals := []string{"a", "b", "c", "d", "e"}
 
-    for _, v := range (vals) {
+    for _, v := range vals {
         client.Sadd("s", strings.Bytes(v))
     }
 
@@ -105,13 +105,13 @@ func TestSet(t *testing.T) {
         t.Fatal("Set setup failed", err.String())
     }
 
-    for _, v := range (vals) {
+    for _, v := range vals {
         if ok, err := client.Sismember("s", strings.Bytes(v)); err != nil || !ok {
             t.Fatal("Sismember test failed")
         }
     }
 
-    for _, v := range (vals) {
+    for _, v := range vals {
         if ok, err := client.Srem("s", strings.Bytes(v)); err != nil || !ok {
             t.Fatal("Sismember test failed")
         }
@@ -131,7 +131,7 @@ func TestList(t *testing.T) {
 
     vals := []string{"a", "b", "c", "d", "e"}
 
-    for _, v := range (vals) {
+    for _, v := range vals {
         client.Rpush("l", strings.Bytes(v))
     }
 

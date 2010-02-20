@@ -28,7 +28,7 @@ func dump_db(port int, db int, output io.Writer) {
         return
     }
 
-    for _, key := range (keys) {
+    for _, key := range keys {
         typ, _ := client.Type(key)
 
         if typ == "string" {
@@ -42,7 +42,7 @@ func dump_db(port int, db int, output io.Writer) {
             }
         } else if typ == "set" {
             members, _ := client.Smembers(key)
-            for _, data := range (members) {
+            for _, data := range members {
                 fmt.Fprintf(output, "SADD %s %d\r\n%s\r\n", key, len(data), data)
             }
         }

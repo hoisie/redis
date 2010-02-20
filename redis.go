@@ -246,7 +246,7 @@ func (client *Client) Keys(pattern string) ([]string, os.Error) {
 
     keys := bytes.Fields(res.([]byte))
     var ret vector.StringVector
-    for _, k := range (keys) {
+    for _, k := range keys {
         ret.Push(string(k))
     }
     return ret, nil
