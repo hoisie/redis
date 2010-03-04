@@ -162,7 +162,7 @@ func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
 
     if client.Db != 0 {
         cmd := fmt.Sprintf("SELECT %d\r\n", client.Db)
-        _, err = client.rawSend(c, strings.Bytes(cmd))
+        _, err = client.rawSend(c, []byte(cmd))
         if err != nil {
             return
         }
@@ -183,7 +183,7 @@ func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
         }
     }
 
-    data, err = client.rawSend(c, strings.Bytes(cmd))
+    data, err = client.rawSend(c, []byte(cmd))
 
     if err == os.EOF {
         c, err = client.openConnection()
@@ -191,7 +191,7 @@ func (client *Client) sendCommand(cmd string) (data interface{}, err os.Error) {
             goto End
         }
 
-        data, err = client.rawSend(c, strings.Bytes(cmd))
+        data, err = client.rawSend(c, []byte(cmd))
     }
 
 End:
