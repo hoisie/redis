@@ -5,9 +5,6 @@ import "fmt"
 import "net"
 import "os"
 import "strconv"
-import "strings"
-
-//import "redis"
 
 func load_db(port int, db int, reader *bufio.Reader) {
     addr := "127.0.0.1:6379"
@@ -35,7 +32,7 @@ func load_db(port int, db int, reader *bufio.Reader) {
         println(string(line))
         c.Write(line)
     }
-    c.Write(strings.Bytes("QUIT\r\n"))
+    c.Write([]byte("QUIT\r\n"))
     buf := make([]byte, 512)
 
     for {
