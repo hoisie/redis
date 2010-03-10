@@ -407,6 +407,17 @@ func (client *Client) Rpush(name string, value []byte) os.Error {
     return nil
 }
 
+func (client *Client) Ltrim(name string, start int64, end int64) os.Error {
+    cmd := fmt.Sprintf("LTRIM %s %d %d\r\n", name, start, end)
+    _, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
 func (client *Client) Sismember(name string, value []byte) (bool, os.Error) {
     cmd := fmt.Sprintf("SISMEMBER %s %d\r\n%s\r\n", name, len(value), value)
     res, err := client.sendCommand(cmd)
