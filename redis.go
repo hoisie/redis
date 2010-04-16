@@ -376,7 +376,7 @@ func (client *Client) Llen(name string) (int, os.Error) {
 }
 
 func (client *Client) Lrange(name string, start int, end int) ([][]byte, os.Error) {
-    cmd := fmt.Sprintf("LRANGE %d %d\r\n", start, end)
+    cmd := fmt.Sprintf("LRANGE %s %d %d\r\n", name, start, end)
     res, err := client.sendCommand(cmd)
     if err != nil {
         return nil, err
