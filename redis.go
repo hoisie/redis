@@ -375,6 +375,16 @@ func (client *Client) Llen(name string) (int, os.Error) {
     return res.(int), nil
 }
 
+func (client *Client) Lrange(name string, start int, end int) ([][]byte, os.Error) {
+    cmd := fmt.Sprintf("LRANGE %d %d\r\n", start, end)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([][]byte), nil
+}
+
 func (client *Client) Lindex(name string, index int) ([]byte, os.Error) {
     cmd := fmt.Sprintf("LINDEX %s %d\r\n", name, index)
     res, err := client.sendCommand(cmd)
@@ -396,8 +406,79 @@ func (client *Client) Lset(name string, index int, value []byte) os.Error {
     return nil
 }
 
+func (client *Client) Lrem(name string, index int) (int, os.Error) {
+    cmd := fmt.Sprintf("LREM %s %d\r\n", name, index)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return -1, err
+    }
+
+    return res.(int), nil
+}
+
+func (client *Client) Lpop(name string) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("LPOP %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
+func (client *Client) Rpop(name string) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("RPOP %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
+func (client *Client) Blpop(name string) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("BLPOP %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
+func (client *Client) Brpop(name string) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("BRPOP %s\r\n", name)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
+func (client *Client) Rpoplpush(src string, dst string) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("RPOPLPUSH %s %s\r\n", src, dst)
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    return res.([]byte), nil
+}
+
 func (client *Client) Rpush(name string, value []byte) os.Error {
     cmd := fmt.Sprintf("RPUSH %s %d\r\n%s\r\n", name, len(value), value)
+    _, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (client *Client) Lpush(name string, value []byte) os.Error {
+    cmd := fmt.Sprintf("LPUSH %s %d\r\n%s\r\n", name, len(value), value)
     _, err := client.sendCommand(cmd)
 
     if err != nil {
