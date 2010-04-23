@@ -1,13 +1,10 @@
 package redis
 
 import (
-    //"fmt"
     "os"
     "runtime"
     "strconv"
-    "strings"
     "testing"
-    //"time"
 )
 
 const (
@@ -29,7 +26,7 @@ func TestBasic(t *testing.T) {
     var val []byte
     var err os.Error
 
-    err = client.Set("a", strings.Bytes("hello"))
+    err = client.Set("a", []byte("hello"))
 
     if err != nil {
         t.Fatal("set failed", err.String())
@@ -57,7 +54,7 @@ func TestBasic(t *testing.T) {
 func setget(t *testing.T, i int) {
 
     s := strconv.Itoa(i)
-    err := client.Set(s, strings.Bytes(s))
+    err := client.Set(s, []byte(s))
     if err != nil {
         t.Fatal("Concurrent set", err.String())
     }
@@ -96,7 +93,7 @@ func TestSet(t *testing.T) {
     vals := []string{"a", "b", "c", "d", "e"}
 
     for _, v := range vals {
-        client.Sadd("s", strings.Bytes(v))
+        client.Sadd("s", []byte(v))
     }
 
     var members [][]byte
@@ -106,13 +103,13 @@ func TestSet(t *testing.T) {
     }
 
     for _, v := range vals {
-        if ok, err := client.Sismember("s", strings.Bytes(v)); err != nil || !ok {
+        if ok, err := client.Sismember("s", []byte(v)); err != nil || !ok {
             t.Fatal("Sismember test failed")
         }
     }
 
     for _, v := range vals {
-        if ok, err := client.Srem("s", strings.Bytes(v)); err != nil || !ok {
+        if ok, err := client.Srem("s", []byte(v)); err != nil || !ok {
             t.Fatal("Sismember test failed")
         }
     }
@@ -132,7 +129,7 @@ func TestList(t *testing.T) {
     vals := []string{"a", "b", "c", "d", "e"}
 
     for _, v := range vals {
-        client.Rpush("l", strings.Bytes(v))
+        client.Rpush("l", []byte(v))
     }
 
     if l, err := client.Llen("l"); err != nil || l != 5 {
@@ -146,7 +143,7 @@ func TestList(t *testing.T) {
     }
 
     for i := 0; i < len(vals); i++ {
-        if err := client.Lset("l", i, strings.Bytes("a")); err != nil {
+        if err := client.Lset("l", i, []byte("a")); err != nil {
             t.Fatal("Lset failed", err.String())
         }
     }
@@ -163,7 +160,7 @@ func TestList(t *testing.T) {
 
 /*
 func TestTimeout(t *testing.T) {
-    client.Set("a", strings.Bytes("hello world"))
+    client.Set("a", []byte("hello world"))
 
 	time.Sleep((serverTimeout+10) * 1e9)
     val, err := client.Get("a")
