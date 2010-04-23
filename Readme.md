@@ -11,14 +11,13 @@ Some features include:
 
 This library was designed to be robust to concurrency conflicts. It lets you declare one redis client which can be shared amongst all goroutines.  
 
-## example
+## Example
 
     //this assumes you have redis running locally on the standard port
     var client redis.Client
-    client.Set("a", strings.Bytes("hello"))
+    client.Set("a", []byte("hello"))
     val, _ := client.Get("a")
     println(string(val))
-
 
 See the test file for more examples :)
 
