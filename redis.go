@@ -105,6 +105,9 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
         if err != nil {
             return nil, RedisError("MultiBulk reply expected a number")
         }
+        if size <= 0 {
+            return make([][]byte, 0), nil
+        }
         res := make([][]byte, size)
         for i := 0; i < size; i++ {
             res[i], err = readBulk(reader, "")
@@ -223,6 +226,29 @@ func (client *Client) Set(key string, val []byte) os.Error {
     }
 
     return nil
+}
+
+func (client *Client) Setnx(key string, val []byte) os.Error {
+    cmd := fmt.Sprintf("SETNX %s %d\r\n%s\r\n", key, len(val), val)
+    _, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (client *Client) Getset(key string, val []byte) ([]byte, os.Error) {
+    cmd := fmt.Sprintf("GETSET %s %d\r\n%s\r\n", key, len(val), val)
+    res, err := client.sendCommand(cmd)
+
+    if err != nil {
+        return nil, err
+    }
+
+    data := res.([]byte)
+    return data, nil
 }
 
 func (client *Client) Del(name string) (bool, os.Error) {
