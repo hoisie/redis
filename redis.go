@@ -217,6 +217,17 @@ func (client *Client) Get(name string) ([]byte, os.Error) {
     return data, nil
 }
 
+func (client *Client) Mget(keys []string) ([][]byte, os.Error) {
+    cmd := fmt.Sprintf("MGET %s\r\n", strings.Join(keys, " "))
+    res, err := client.sendCommand(cmd)
+    if err != nil {
+        return nil, err
+    }
+
+    data := res.([][]byte)
+    return data, nil
+}
+
 func (client *Client) Set(key string, val []byte) os.Error {
     cmd := fmt.Sprintf("SET %s %d\r\n%s\r\n", key, len(val), val)
     _, err := client.sendCommand(cmd)
