@@ -2,8 +2,10 @@ package redis
 
 import (
     "os"
+    "reflect"
     "runtime"
     "strconv"
+    "strings"
     "testing"
 )
 
@@ -17,7 +19,7 @@ var client Client
 
 func init() {
     runtime.GOMAXPROCS(2)
-    client.Addr = "127.0.0.1:7379"
+    client.Addr = "127.0.0.1:8379"
     client.Db = 13
 }
 
@@ -156,6 +158,78 @@ func TestList(t *testing.T) {
 
     client.Del("l")
 
+}
+
+func verifyHash(t *testing.T, key string, expected map[string][]byte) {
+    //test Hget
+    m1 := make(map[string][]byte)
+    for k, _ := range expected {
+        actual, err := client.Hget("h", k)
+        if err != nil {
+            t.Fatal("verifyHash Hget failed", err.String())
+        }
+        m1[k] = actual
+    }
+    if !reflect.DeepEqual(m1, expected) {
+        t.Fatal("verifyHash Hget failed")
+    }
+
+
+    //test Hkeys
+    keys, err := client.Hkeys(key)
+    if err != nil {
+        t.Fatal("verifyHash Hkeys failed", err.String())
+    }
+    if len(keys) != len(expected) {
+        t.Fatal("verifyHash Hkeys failed")
+    }
+    for _, key := range keys {
+        if expected[key] == nil {
+            t.Fatal("verifyHash Hkeys failed")
+        }
+    }
+
+    //test Hvals
+    vals, err := client.Hvals(key)
+    if err != nil {
+        t.Fatal("verifyHash Hvals failed", err.String())
+    }
+    if len(vals) != len(expected) {
+        t.Fatal("verifyHash Hvals failed")
+    }
+
+    //test Hgetall
+    m2, err := client.Hgetall(key)
+    if err != nil {
+        t.Fatal("verifyHash Hgetall failed", err.String())
+    }
+    if !reflect.DeepEqual(m2, expected) {
+        t.Fatal("verifyHash Hgetall failed")
+    }
+}
+
+func TestHash(t *testing.T) {
+    //test cast
+    keys := []string{"a", "b", "c", "d", "e"}
+    test := make(map[string][]byte)
+    for _, v := range keys {
+        test[v] = []byte(strings.Repeat(v, 5))
+    }
+
+    //set with hset
+    for k, v := range test {
+        client.Hset("h", k, v)
+    }
+    //test hset
+    verifyHash(t, "h", test)
+
+    //set with hmset
+    client.Hmset("h2", test)
+    //test hset
+    verifyHash(t, "h2", test)
+
+    client.Del("h")
+    client.Del("h2")
 }
 
 /*
