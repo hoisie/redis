@@ -1,6 +1,7 @@
 package redis
 
 import (
+    "fmt"
     "os"
     "reflect"
     "runtime"
@@ -164,7 +165,7 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hget
     m1 := make(map[string][]byte)
     for k, _ := range expected {
-        actual, err := client.Hget("h", k)
+        actual, err := client.Hget(key, k)
         if err != nil {
             t.Fatal("verifyHash Hget failed", err.String())
         }
@@ -174,18 +175,18 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
         t.Fatal("verifyHash Hget failed")
     }
 
-
     //test Hkeys
     keys, err := client.Hkeys(key)
     if err != nil {
         t.Fatal("verifyHash Hkeys failed", err.String())
     }
     if len(keys) != len(expected) {
-        t.Fatal("verifyHash Hkeys failed")
+        fmt.Printf("%v\n", keys)
+        t.Fatal("verifyHash Hkeys failed - length not equal")
     }
     for _, key := range keys {
         if expected[key] == nil {
-            t.Fatal("verifyHash Hkeys failed")
+            t.Fatal("verifyHash Hkeys failed missing key", key)
         }
     }
 
@@ -198,14 +199,19 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
         t.Fatal("verifyHash Hvals failed")
     }
 
+    m2 := map[string][]byte{}
     //test Hgetall
-    m2, err := client.Hgetall(key)
+    err = client.Hgetall(key, m2)
     if err != nil {
         t.Fatal("verifyHash Hgetall failed", err.String())
     }
     if !reflect.DeepEqual(m2, expected) {
         t.Fatal("verifyHash Hgetall failed")
     }
+}
+
+type tt struct {
+    A, B, C, D, E string
 }
 
 func TestHash(t *testing.T) {
@@ -218,7 +224,7 @@ func TestHash(t *testing.T) {
 
     //set with hset
     for k, v := range test {
-        client.Hset("h", k, v)
+        client.Hset("h", k, []byte(v))
     }
     //test hset
     verifyHash(t, "h", test)
@@ -228,8 +234,24 @@ func TestHash(t *testing.T) {
     //test hset
     verifyHash(t, "h2", test)
 
+    test3 := tt{"aaaaa", "bbbbb", "ccccc", "ddddd", "eeeee"}
+
+    client.Hmset("h3", test3)
+    //verifyHash(t, "h3", test)
+
+    var test4 tt
+    //test Hgetall
+    err := client.Hgetall("h3", &test4)
+    if err != nil {
+        t.Fatal("verifyHash Hgetall failed", err.String())
+    }
+    if !reflect.DeepEqual(test4, test3) {
+        t.Fatal("verifyHash Hgetall failed")
+    }
+
     client.Del("h")
     client.Del("h2")
+    client.Del("h3")
 }
 
 /*
