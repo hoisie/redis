@@ -249,6 +249,17 @@ func TestHash(t *testing.T) {
         t.Fatal("verifyHash Hgetall failed")
     }
 
+    //text extraneous fields
+    client.Hset("h3", "f", []byte("ffffff"))
+    var test5 tt
+    err = client.Hgetall("h3", &test5)
+    if err != nil {
+        t.Fatal("verifyHash Hgetall failed", err.String())
+    }
+    if !reflect.DeepEqual(test5, test3) {
+        t.Fatal("verifyHash Hgetall failed")
+    }
+
     client.Del("h")
     client.Del("h2")
     client.Del("h3")

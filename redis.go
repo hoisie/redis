@@ -255,9 +255,16 @@ func (client *Client) Keys(pattern string) ([]string, os.Error) {
         return nil, err
     }
 
-    keys := bytes.Fields(res.([]byte))
-    ret := make([]string, len(keys))
-    for i, k := range keys {
+    var ok bool
+    var keydata [][]byte
+
+    if keydata, ok = res.([][]byte); ok {
+        // key data is already a double byte array
+    } else {
+        keydata = bytes.Fields(res.([]byte))
+    }
+    ret := make([]string, len(keydata))
+    for i, k := range keydata {
         ret[i] = string(k)
     }
     return ret, nil
@@ -958,11 +965,12 @@ func valueToString(v reflect.Value) (string, os.Error) {
     return "", os.NewError("Unsupported type")
 }
 
-func (client *Client) Hmset(key string, mapping interface{}) os.Error {
-    var args vector.StringVector
-    args.Push(key)
-
-    switch v := reflect.NewValue(mapping).(type) {
+func containerToString(val reflect.Value, args *vector.StringVector) os.Error {
+    switch v := val.(type) {
+    case *reflect.PtrValue:
+        return containerToString(reflect.Indirect(v), args)
+    case *reflect.InterfaceValue:
+        return containerToString(v.Elem(), args)
     case *reflect.MapValue:
         if _, ok := v.Type().(*reflect.MapType).Key().(*reflect.StringType); !ok {
             return os.NewError("Unsupported type - map key must be a string")
@@ -987,8 +995,17 @@ func (client *Client) Hmset(key string, mapping interface{}) os.Error {
             args.Push(s)
         }
     }
+    return nil
+}
 
-    _, err := client.sendCommand("HMSET", args)
+func (client *Client) Hmset(key string, mapping interface{}) os.Error {
+    args := new(vector.StringVector)
+    args.Push(key)
+    err := containerToString(reflect.NewValue(mapping), args)
+    if err != nil {
+        return err
+    }
+    _, err = client.sendCommand("HMSET", *args)
     if err != nil {
         return err
     }
