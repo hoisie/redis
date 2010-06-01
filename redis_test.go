@@ -1,7 +1,9 @@
 package redis
 
 import (
+    "container/vector"
     "fmt"
+    "json"
     "os"
     "reflect"
     "runtime"
@@ -328,6 +330,122 @@ func TestHash(t *testing.T) {
     client.Del("h")
     client.Del("h2")
     client.Del("h3")
+}
+
+func BenchmarkMultipleGet(b *testing.B) {
+    client.Set("bmg", []byte("hi"))
+    for i := 0; i < b.N; i++ {
+        client.Get("bmg")
+    }
+    client.Del("bmg")
+}
+
+func BenchmarkMGet(b *testing.B) {
+    client.Set("bmg", []byte("hi"))
+    var vals vector.StringVector
+    for i := 0; i < b.N; i++ {
+        vals.Push("bmg")
+    }
+    client.Mget(vals)
+    client.Del("bmg")
+}
+
+type testType struct {
+    A, B, C string
+    D, E, F int64
+}
+
+var testObj = testType{"A", "B", "C", 1, 2, 3}
+
+func BenchmarkJsonSet(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        data, _ := json.Marshal(testObj)
+        client.Set("tjs", data)
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkHmset(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        client.Hmset("tjs", testObj)
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkJsonGet(b *testing.B) {
+    data, _ := json.Marshal(testObj)
+    client.Set("tjs", data)
+
+    for i := 0; i < b.N; i++ {
+        var tt testType
+        data, _ := client.Get("tjs")
+        json.Unmarshal(data, &tt)
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkHgetall(b *testing.B) {
+    client.Hmset("tjs", testObj)
+    for i := 0; i < b.N; i++ {
+        var tt testType
+        client.Hgetall("tjs", &tt)
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkJsonMget(b *testing.B) {
+    od, _ := json.Marshal(testObj)
+    client.Set("tjs", od)
+
+    var vals vector.StringVector
+    for i := 0; i < b.N; i++ {
+        vals.Push("tjs")
+    }
+
+    data, _ := client.Mget(vals)
+    for _, val := range data {
+        var tt testType
+        json.Unmarshal(val, &tt)
+    }
+
+    client.Del("tjs")
+}
+
+func BenchmarkHset(b *testing.B) {
+    client.Hmset("tjs", testObj)
+    for i := 0; i < b.N; i++ {
+        client.Hset("tjs", "a", []byte("z"))
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkJsonFieldSet(b *testing.B) {
+    data, _ := json.Marshal(testObj)
+    client.Set("tjs", data)
+
+    for i := 0; i < b.N; i++ {
+        var tt testType
+        data, _ := client.Get("tjs")
+        json.Unmarshal(data, &tt)
+        tt.A = "z"
+        data, _ = json.Marshal(tt)
+        client.Set("tjs", data)
+    }
+    client.Del("tjs")
+}
+
+func BenchmarkZadd(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        client.Zadd("zrs", []byte("hi"+strconv.Itoa(i)), float64(i))
+    }
+    client.Del("zrs")
+}
+
+func BenchmarkRpush(b *testing.B) {
+    for i := 0; i < b.N; i++ {
+        client.Rpush("zrs", []byte("hi"+strconv.Itoa(i)))
+    }
+    client.Del("zrs")
 }
 
 /*
