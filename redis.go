@@ -540,7 +540,6 @@ func (client *Client) Lrange(key string, start int, end int) ([][]byte, os.Error
 
 func (client *Client) Ltrim(key string, start int, end int) os.Error {
     _, err := client.sendCommand("LTRIM", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
-
     if err != nil {
         return err
     }
@@ -550,7 +549,6 @@ func (client *Client) Ltrim(key string, start int, end int) os.Error {
 
 func (client *Client) Lindex(key string, index int) ([]byte, os.Error) {
     res, err := client.sendCommand("LINDEX", []string{key, strconv.Itoa(index)})
-
     if err != nil {
         return nil, err
     }
@@ -774,7 +772,7 @@ func (client *Client) Srandmember(key string) ([]byte, os.Error) {
 // sorted set commands
 
 func (client *Client) Zadd(key string, value []byte, score float64) (bool, os.Error) {
-    res, err := client.sendCommand("ZADD", []string{key, string(value), strconv.Ftoa64(score, 'f', -1)})
+    res, err := client.sendCommand("ZADD", []string{key, strconv.Ftoa64(score, 'f', -1), string(value)})
     if err != nil {
         return false, err
     }
@@ -1217,7 +1215,11 @@ func (client *Client) Hgetall(key string, val interface{}) os.Error {
     if err != nil {
         return err
     }
+
     data := res.([][]byte)
+    if data == nil || len(data) == 0 {
+        return RedisError("Key `" + key + "` does not exist")
+    }
     err = writeToContainer(data, reflect.NewValue(val))
     if err != nil {
         return err

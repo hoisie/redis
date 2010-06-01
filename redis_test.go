@@ -210,6 +210,65 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     }
 }
 
+func TestSortedSet(t *testing.T) {
+    svals := []string{"a", "b", "c", "d", "e"}
+    ranks := []float64{0.0, 1.0, 2.0, 3.0, 4.0}
+    vals := make([][]byte, len(svals))
+    for i := 0; i < len(svals); i++ {
+        vals[i] = []byte(svals[i])
+        _, err := client.Zadd("zs", vals[i], ranks[i])
+        if err != nil {
+            t.Fatal("zdd failed" + err.String())
+        }
+    }
+
+    card, err := client.Zcard("zs")
+    if err != nil {
+        t.Fatal("zcard failed" + err.String())
+    }
+    if card != 5 {
+        t.Fatal("zcard failed", card)
+    }
+    for i := 0; i <= 4; i++ {
+        data, _ := client.Zrange("zs", 0, i)
+        if !reflect.DeepEqual(data, vals[0:i+1]) {
+            t.Fatal("zrange failed")
+        }
+    }
+    for i := 0; i <= 4; i++ {
+        data, _ := client.Zrangebyscore("zs", 0, float64(i))
+        if !reflect.DeepEqual(data, vals[0:i+1]) {
+            t.Fatal("zrangebyscore failed")
+        }
+    }
+
+    //clean up
+    _, err = client.Zrem("zs", []byte("a"))
+    if err != nil {
+        t.Fatal("zrem failed" + err.String())
+    }
+
+    _, err = client.Zremrangebyrank("zs", 0, 1)
+    if err != nil {
+        t.Fatal("zremrangebynrank failed" + err.String())
+    }
+
+    _, err = client.Zremrangebyscore("zs", 3, 4)
+    if err != nil {
+        t.Fatal("zremrangebyscore failed" + err.String())
+    }
+
+    card, err = client.Zcard("zs")
+    if err != nil {
+        t.Fatal("zcard failed" + err.String())
+    }
+    if card != 0 {
+        t.Fatal("zcard failed", card)
+    }
+
+    client.Del("zs")
+}
+
 type tt struct {
     A, B, C, D, E string
 }
@@ -258,6 +317,12 @@ func TestHash(t *testing.T) {
     }
     if !reflect.DeepEqual(test5, test3) {
         t.Fatal("verifyHash Hgetall failed")
+    }
+
+    err = client.Hgetall("hdne", &test5)
+    if err == nil {
+        t.Fatal("should be an error")
+
     }
 
     client.Del("h")
