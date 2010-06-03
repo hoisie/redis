@@ -913,6 +913,10 @@ func valueToString(v reflect.Value) (string, os.Error) {
     }
 
     switch v := v.(type) {
+    case *reflect.PtrValue:
+        return valueToString(reflect.Indirect(v))
+    case *reflect.InterfaceValue:
+        return valueToString(v.Elem())
     case *reflect.BoolValue:
         x := v.Get()
         if x {
@@ -1073,6 +1077,10 @@ func (client *Client) Hvals(key string) ([][]byte, os.Error) {
 func writeTo(data []byte, val reflect.Value) os.Error {
     s := string(data)
     switch v := val.(type) {
+    // if we're writing to an interace value, just set the byte data
+    // TODO: should we support writing to a pointer?
+    case *reflect.InterfaceValue:
+        v.Set(reflect.NewValue(data))
     case *reflect.BoolValue:
         b, err := strconv.Atob(s)
         if err != nil {

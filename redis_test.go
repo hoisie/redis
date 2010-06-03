@@ -324,12 +324,28 @@ func TestHash(t *testing.T) {
     err = client.Hgetall("hdne", &test5)
     if err == nil {
         t.Fatal("should be an error")
+    }
 
+    test6 := make(map[string]interface{})
+    for _, v := range keys {
+        test6[v] = []byte(strings.Repeat(v, 5))
+    }
+    client.Hmset("h4", test6)
+
+    //test Hgetall
+    test7 := make(map[string]interface{})
+    err = client.Hgetall("h4", &test7)
+    if err != nil {
+        t.Fatal("verifyHash Hgetall failed", err.String())
+    }
+    if !reflect.DeepEqual(test6, test7) {
+        t.Fatal("verifyHash Hgetall failed")
     }
 
     client.Del("h")
     client.Del("h2")
     client.Del("h3")
+    client.Del("h4")
 }
 
 func BenchmarkMultipleGet(b *testing.B) {
