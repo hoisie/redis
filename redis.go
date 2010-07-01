@@ -391,14 +391,16 @@ func (client *Client) Mget(keys []string) ([][]byte, os.Error) {
     return data, nil
 }
 
-func (client *Client) Setnx(key string, val []byte) os.Error {
-    _, err := client.sendCommand("SETNX", []string{key, string(val)})
+func (client *Client) Setnx(key string, val []byte) (bool, os.Error) {
+    res, err := client.sendCommand("SETNX", []string{key, string(val)})
 
     if err != nil {
-        return err
+        return false, err
     }
-
-    return nil
+    if data, ok := res.(int64); ok {
+        return data == 1, nil
+    }
+    return false, RedisError("Unexpected reply to SETNX")
 }
 
 func (client *Client) Setex(key string, time int64, val []byte) os.Error {
@@ -426,7 +428,7 @@ func (client *Client) Mset(mapping map[string][]byte) os.Error {
     return nil
 }
 
-func (client *Client) Msetnx(mapping map[string][]byte) os.Error {
+func (client *Client) Msetnx(mapping map[string][]byte) (bool, os.Error) {
     args := make([]string, len(mapping)*2)
     i := 0
     for k, v := range mapping {
@@ -434,11 +436,14 @@ func (client *Client) Msetnx(mapping map[string][]byte) os.Error {
         args[i+1] = string(v)
         i += 2
     }
-    _, err := client.sendCommand("MSETNX", args)
+    res, err := client.sendCommand("MSETNX", args)
     if err != nil {
-        return err
+        return false, err
     }
-    return nil
+    if data, ok := res.(int64); ok {
+        return data == 0, nil
+    }
+    return false, RedisError("Unexpected reply to MSETNX")
 }
 
 func (client *Client) Incr(key string) (int64, os.Error) {
