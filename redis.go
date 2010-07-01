@@ -931,42 +931,29 @@ func valueToString(v reflect.Value) (string, os.Error) {
         }
 
     case *reflect.IntValue:
-        return strconv.Itoa(v.Get()), nil
-    case *reflect.Int8Value:
-        return strconv.Itoa(int(v.Get())), nil
-    case *reflect.Int16Value:
-        return strconv.Itoa(int(v.Get())), nil
-    case *reflect.Int32Value:
-        return strconv.Itoa(int(v.Get())), nil
-    case *reflect.Int64Value:
         return strconv.Itoa64(v.Get()), nil
-
     case *reflect.UintValue:
-        return strconv.Uitoa(v.Get()), nil
-    case *reflect.Uint8Value:
-        return strconv.Uitoa(uint(v.Get())), nil
-    case *reflect.Uint16Value:
-        return strconv.Uitoa(uint(v.Get())), nil
-    case *reflect.Uint32Value:
-        return strconv.Uitoa(uint(v.Get())), nil
-    case *reflect.Uint64Value:
         return strconv.Uitoa64(v.Get()), nil
-    case *reflect.UintptrValue:
+    case *reflect.UnsafePointerValue:
         return strconv.Uitoa64(uint64(v.Get())), nil
 
     case *reflect.FloatValue:
-        return strconv.Ftoa(v.Get(), 'g', -1), nil
-    case *reflect.Float32Value:
-        return strconv.Ftoa32(v.Get(), 'g', -1), nil
-    case *reflect.Float64Value:
         return strconv.Ftoa64(v.Get(), 'g', -1), nil
 
     case *reflect.StringValue:
         return v.Get(), nil
+
+    //This is kind of a rough hack to replace the old []byte
+    //detection with reflect.Uint8Type, it doesn't catch
+    //zero-length byte slices
     case *reflect.SliceValue:
         typ := v.Type().(*reflect.SliceType)
-        if _, ok := typ.Elem().(*reflect.Uint8Type); ok {
-            return string(v.Interface().([]byte)), nil
+        if _, ok := typ.Elem().(*reflect.UintType); ok {
+            if v.Len() > 0 {
+	        if v.Elem(1).(*reflect.UintValue).Overflow(257) {
+                    return string(v.Interface().([]byte)), nil
+                }
+            }
         }
     }
     return "", os.NewError("Unsupported type")
@@ -1093,86 +1080,18 @@ func writeTo(data []byte, val reflect.Value) os.Error {
         }
         v.Set(b)
     case *reflect.IntValue:
-        i, err := strconv.Atoi(s)
-        if err != nil {
-            return err
-        }
-        v.Set(i)
-    case *reflect.Int8Value:
-        i, err := strconv.Atoi(s)
-        if err != nil {
-            return err
-        }
-        v.Set(int8(i))
-    case *reflect.Int16Value:
-        i, err := strconv.Atoi(s)
-        if err != nil {
-            return err
-        }
-        v.Set(int16(i))
-    case *reflect.Int32Value:
-        i, err := strconv.Atoi(s)
-        if err != nil {
-            return err
-        }
-        v.Set(int32(i))
-    case *reflect.Int64Value:
         i, err := strconv.Atoi64(s)
         if err != nil {
             return err
         }
         v.Set(i)
     case *reflect.UintValue:
-        ui, err := strconv.Atoui(s)
-        if err != nil {
-            return err
-        }
-        v.Set(ui)
-
-    case *reflect.Uint8Value:
-        ui, err := strconv.Atoui(s)
-        if err != nil {
-            return err
-        }
-        v.Set(uint8(ui))
-    case *reflect.Uint16Value:
-        ui, err := strconv.Atoui(s)
-        if err != nil {
-            return err
-        }
-        v.Set(uint16(ui))
-    case *reflect.Uint32Value:
-        ui, err := strconv.Atoui(s)
-        if err != nil {
-            return err
-        }
-        v.Set(uint32(ui))
-    case *reflect.Uint64Value:
         ui, err := strconv.Atoui64(s)
         if err != nil {
             return err
         }
         v.Set(ui)
-    case *reflect.UintptrValue:
-        ui, err := strconv.Atoui64(s)
-        if err != nil {
-            return err
-        }
-        v.Set(uintptr(ui))
     case *reflect.FloatValue:
-        f, err := strconv.Atof(s)
-        if err != nil {
-            return err
-        }
-        v.Set(f)
-
-    case *reflect.Float32Value:
-        f, err := strconv.Atof32(s)
-        if err != nil {
-            return err
-        }
-        v.Set(f)
-    case *reflect.Float64Value:
         f, err := strconv.Atof64(s)
         if err != nil {
             return err
@@ -1183,7 +1102,7 @@ func writeTo(data []byte, val reflect.Value) os.Error {
         v.Set(s)
     case *reflect.SliceValue:
         typ := v.Type().(*reflect.SliceType)
-        if _, ok := typ.Elem().(*reflect.Uint8Type); ok {
+        if _, ok := typ.Elem().(*reflect.UintType); ok {
             v.Set(reflect.NewValue(data).(*reflect.SliceValue))
         }
     }
