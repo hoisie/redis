@@ -18,27 +18,21 @@ const (
     MaxPoolSize = 5
 )
 
-var pool chan *net.TCPConn
-
 var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:6379")
 
 type Client struct {
     Addr     string
     Db       int
     Password string
+    //the channel for pub/sub commands
+    Messages chan []byte
+    //the connection pool
+    pool chan *net.TCPConn
 }
 
 type RedisError string
 
 func (err RedisError) String() string { return "Redis Error: " + string(err) }
-
-func init() {
-    pool = make(chan *net.TCPConn, MaxPoolSize)
-    for i := 0; i < MaxPoolSize; i++ {
-        //add dummy values to the pool
-        pool <- nil
-    }
-}
 
 // reads a bulk reply (i.e $5\r\nhello)
 func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
@@ -181,8 +175,15 @@ func (client *Client) sendCommand(cmd string, args []string) (data interface{}, 
         cmdbuf.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s))
     }
 
+    if client.pool == nil {
+        client.pool = make(chan *net.TCPConn, MaxPoolSize)
+        for i := 0; i < MaxPoolSize; i++ {
+            //add dummy values to the pool
+            client.pool <- nil
+        }
+    }
     // grab a connection from the pool
-    c := <-pool
+    c := <-client.pool
 
     if c == nil {
         c, err = client.openConnection()
@@ -203,7 +204,7 @@ func (client *Client) sendCommand(cmd string, args []string) (data interface{}, 
 End:
 
     //add the client back to the queue
-    pool <- c
+    client.pool <- c
 
     return data, err
 }
@@ -950,7 +951,7 @@ func valueToString(v reflect.Value) (string, os.Error) {
         typ := v.Type().(*reflect.SliceType)
         if _, ok := typ.Elem().(*reflect.UintType); ok {
             if v.Len() > 0 {
-	        if v.Elem(1).(*reflect.UintValue).Overflow(257) {
+                if v.Elem(1).(*reflect.UintValue).Overflow(257) {
                     return string(v.Interface().([]byte)), nil
                 }
             }
