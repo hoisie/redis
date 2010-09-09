@@ -222,6 +222,13 @@ func TestSortedSet(t *testing.T) {
         if err != nil {
             t.Fatal("zdd failed" + err.String())
         }
+        score, err := client.Zscore("zs", vals[i])
+        if err != nil {
+            t.Fatal("zscore failed" + err.String())
+        }
+        if score != ranks[i] {
+            t.Fatal("zscore failed")
+        }
     }
 
     card, err := client.Zcard("zs")
@@ -242,6 +249,22 @@ func TestSortedSet(t *testing.T) {
         if !reflect.DeepEqual(data, vals[0:i+1]) {
             t.Fatal("zrangebyscore failed")
         }
+    }
+    //incremement
+    for i := 0; i <= 4; i++ {
+        client.Zincrby("zs", vals[i], 1)
+
+        score, err := client.Zscore("zs", vals[i])
+        if err != nil {
+            t.Fatal("zscore failed" + err.String())
+        }
+        if score != ranks[i]+1 {
+            t.Fatal("zscore failed")
+        }
+    }
+
+    for i := 0; i <= 4; i++ {
+        client.Zincrby("zs", vals[i], -1)
     }
 
     //clean up

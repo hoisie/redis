@@ -796,7 +796,7 @@ func (client *Client) Zrem(key string, value []byte) (bool, os.Error) {
 }
 
 func (client *Client) Zincrby(key string, value []byte, score float64) (float64, os.Error) {
-    res, err := client.sendCommand("ZINCRBY", []string{key, string(value), strconv.Ftoa64(score, 'f', -1)})
+    res, err := client.sendCommand("ZINCRBY", []string{key, strconv.Ftoa64(score, 'f', -1), string(value)})
     if err != nil {
         return 0, err
     }
@@ -860,8 +860,8 @@ func (client *Client) Zcard(key string) (int, os.Error) {
     return int(res.(int64)), nil
 }
 
-func (client *Client) Zscore(key string) (float64, os.Error) {
-    res, err := client.sendCommand("ZSCORE", []string{key})
+func (client *Client) Zscore(key string, member []byte) (float64, os.Error) {
+    res, err := client.sendCommand("ZSCORE", []string{key, string(member)})
     if err != nil {
         return 0, err
     }
