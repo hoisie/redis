@@ -22,7 +22,7 @@ var client Client
 
 func init() {
     runtime.GOMAXPROCS(2)
-    client.Addr = "127.0.0.1:8379"
+    client.Addr = "127.0.0.1:7379"
     client.Db = 13
 }
 
@@ -82,6 +82,16 @@ func TestEmptyGet(t *testing.T) {
 
     if err == nil {
         t.Fatal("Expected an error")
+    }
+    client.Set("a", []byte("12"))
+
+    vals, err := client.Mget("a", "b")
+
+    if err != nil {
+        t.Fatal(err.String())
+    }
+    if vals[0] == nil || vals[1] != nil {
+        t.Fatal("TestEmptyGet failed")
     }
 }
 
@@ -385,7 +395,7 @@ func BenchmarkMGet(b *testing.B) {
     for i := 0; i < b.N; i++ {
         vals.Push("bmg")
     }
-    client.Mget(vals)
+    client.Mget(vals...)
     client.Del("bmg")
 }
 
@@ -441,7 +451,7 @@ func BenchmarkJsonMget(b *testing.B) {
         vals.Push("tjs")
     }
 
-    data, _ := client.Mget(vals)
+    data, _ := client.Mget(vals...)
     for _, val := range data {
         var tt testType
         json.Unmarshal(val, &tt)

@@ -18,7 +18,7 @@ const (
     MaxPoolSize = 5
 )
 
-var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:6379")
+var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:7379")
 
 type Client struct {
     Addr     string
@@ -34,6 +34,8 @@ type RedisError string
 
 func (err RedisError) String() string { return "Redis Error: " + string(err) }
 
+var doesNotExist = RedisError("Key does not exist ")
+
 // reads a bulk reply (i.e $5\r\nhello)
 func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
     var err os.Error
@@ -45,7 +47,6 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
             return nil, err
         }
     }
-
     if head[0] != '$' {
         return nil, RedisError("Expecting Prefix '$'")
     }
@@ -53,7 +54,7 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
     size, err := strconv.Atoi(strings.TrimSpace(head[1:]))
 
     if size == -1 {
-        return nil, RedisError("Key does not exist ")
+        return nil, doesNotExist
     }
     lr := io.LimitReader(reader, int64(size))
     data, err = ioutil.ReadAll(lr)
@@ -106,6 +107,9 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
         res := make([][]byte, size)
         for i := 0; i < size; i++ {
             res[i], err = readBulk(reader, "")
+            if err == doesNotExist {
+                continue
+            }
             if err != nil {
                 return nil, err
             }
@@ -169,7 +173,7 @@ func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
 }
 
 
-func (client *Client) sendCommand(cmd string, args []string) (data interface{}, err os.Error) {
+func (client *Client) sendCommand(cmd string, args ...string) (data interface{}, err os.Error) {
     cmdbuf := bytes.NewBufferString(fmt.Sprintf("*%d\r\n$%d\r\n%s\r\n", len(args)+1, len(cmd), cmd))
     for _, s := range args {
         cmdbuf.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s))
@@ -212,7 +216,7 @@ End:
 // General Commands
 
 func (client *Client) Auth(password string) os.Error {
-    _, err := client.sendCommand("AUTH", []string{password})
+    _, err := client.sendCommand("AUTH", password)
     if err != nil {
         return err
     }
@@ -222,7 +226,7 @@ func (client *Client) Auth(password string) os.Error {
 
 func (client *Client) Exists(key string) (bool, os.Error) {
     cmd := fmt.Sprintf("EXISTS %s\r\n", key)
-    res, err := client.sendCommand(cmd, []string{key})
+    res, err := client.sendCommand(cmd, key)
     if err != nil {
         return false, err
     }
@@ -230,7 +234,7 @@ func (client *Client) Exists(key string) (bool, os.Error) {
 }
 
 func (client *Client) Del(key string) (bool, os.Error) {
-    res, err := client.sendCommand("DEL", []string{key})
+    res, err := client.sendCommand("DEL", key)
 
     if err != nil {
         return false, err
@@ -240,7 +244,7 @@ func (client *Client) Del(key string) (bool, os.Error) {
 }
 
 func (client *Client) Type(key string) (string, os.Error) {
-    res, err := client.sendCommand("TYPE", []string{key})
+    res, err := client.sendCommand("TYPE", key)
 
     if err != nil {
         return "", err
@@ -250,7 +254,7 @@ func (client *Client) Type(key string) (string, os.Error) {
 }
 
 func (client *Client) Keys(pattern string) ([]string, os.Error) {
-    res, err := client.sendCommand("KEYS", []string{pattern})
+    res, err := client.sendCommand("KEYS", pattern)
 
     if err != nil {
         return nil, err
@@ -272,7 +276,7 @@ func (client *Client) Keys(pattern string) ([]string, os.Error) {
 }
 
 func (client *Client) Randomkey() (string, os.Error) {
-    res, err := client.sendCommand("RANDOMKEY", nil)
+    res, err := client.sendCommand("RANDOMKEY")
     if err != nil {
         return "", err
     }
@@ -281,7 +285,7 @@ func (client *Client) Randomkey() (string, os.Error) {
 
 
 func (client *Client) Rename(src string, dst string) os.Error {
-    _, err := client.sendCommand("RENAME", []string{src, dst})
+    _, err := client.sendCommand("RENAME", src, dst)
     if err != nil {
         return err
     }
@@ -289,7 +293,7 @@ func (client *Client) Rename(src string, dst string) os.Error {
 }
 
 func (client *Client) Renamenx(src string, dst string) (bool, os.Error) {
-    res, err := client.sendCommand("RENAMENX", []string{src, dst})
+    res, err := client.sendCommand("RENAMENX", src, dst)
     if err != nil {
         return false, err
     }
@@ -297,7 +301,7 @@ func (client *Client) Renamenx(src string, dst string) (bool, os.Error) {
 }
 
 func (client *Client) Dbsize() (int, os.Error) {
-    res, err := client.sendCommand("DBSIZE", nil)
+    res, err := client.sendCommand("DBSIZE")
     if err != nil {
         return -1, err
     }
@@ -306,7 +310,7 @@ func (client *Client) Dbsize() (int, os.Error) {
 }
 
 func (client *Client) Expire(key string, time int64) (bool, os.Error) {
-    res, err := client.sendCommand("EXPIRE", []string{key, strconv.Itoa64(time)})
+    res, err := client.sendCommand("EXPIRE", key, strconv.Itoa64(time))
 
     if err != nil {
         return false, err
@@ -316,7 +320,7 @@ func (client *Client) Expire(key string, time int64) (bool, os.Error) {
 }
 
 func (client *Client) Ttl(key string) (int64, os.Error) {
-    res, err := client.sendCommand("TTL", []string{key})
+    res, err := client.sendCommand("TTL", key)
     if err != nil {
         return -1, err
     }
@@ -325,7 +329,7 @@ func (client *Client) Ttl(key string) (int64, os.Error) {
 }
 
 func (client *Client) Move(key string, dbnum int) (bool, os.Error) {
-    res, err := client.sendCommand("MOVE", []string{key, strconv.Itoa(dbnum)})
+    res, err := client.sendCommand("MOVE", key, strconv.Itoa(dbnum))
 
     if err != nil {
         return false, err
@@ -341,7 +345,7 @@ func (client *Client) Flush(all bool) os.Error {
     } else {
         cmd = "FLUSHDB"
     }
-    _, err := client.sendCommand(cmd, nil)
+    _, err := client.sendCommand(cmd)
     if err != nil {
         return err
     }
@@ -351,7 +355,7 @@ func (client *Client) Flush(all bool) os.Error {
 // String-related commands
 
 func (client *Client) Set(key string, val []byte) os.Error {
-    _, err := client.sendCommand("SET", []string{key, string(val)})
+    _, err := client.sendCommand("SET", key, string(val))
 
     if err != nil {
         return err
@@ -361,7 +365,7 @@ func (client *Client) Set(key string, val []byte) os.Error {
 }
 
 func (client *Client) Get(key string) ([]byte, os.Error) {
-    res, _ := client.sendCommand("GET", []string{key})
+    res, _ := client.sendCommand("GET", key)
 
     if res == nil {
         return nil, RedisError("Key `" + key + "` does not exist")
@@ -372,7 +376,7 @@ func (client *Client) Get(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Getset(key string, val []byte) ([]byte, os.Error) {
-    res, err := client.sendCommand("GETSET", []string{key, string(val)})
+    res, err := client.sendCommand("GETSET", key, string(val))
 
     if err != nil {
         return nil, err
@@ -382,8 +386,8 @@ func (client *Client) Getset(key string, val []byte) ([]byte, os.Error) {
     return data, nil
 }
 
-func (client *Client) Mget(keys []string) ([][]byte, os.Error) {
-    res, err := client.sendCommand("MGET", keys)
+func (client *Client) Mget(keys ...string) ([][]byte, os.Error) {
+    res, err := client.sendCommand("MGET", keys...)
     if err != nil {
         return nil, err
     }
@@ -393,7 +397,7 @@ func (client *Client) Mget(keys []string) ([][]byte, os.Error) {
 }
 
 func (client *Client) Setnx(key string, val []byte) (bool, os.Error) {
-    res, err := client.sendCommand("SETNX", []string{key, string(val)})
+    res, err := client.sendCommand("SETNX", key, string(val))
 
     if err != nil {
         return false, err
@@ -405,7 +409,7 @@ func (client *Client) Setnx(key string, val []byte) (bool, os.Error) {
 }
 
 func (client *Client) Setex(key string, time int64, val []byte) os.Error {
-    _, err := client.sendCommand("SETEX", []string{key, strconv.Itoa64(time), string(val)})
+    _, err := client.sendCommand("SETEX", key, strconv.Itoa64(time), string(val))
 
     if err != nil {
         return err
@@ -422,7 +426,7 @@ func (client *Client) Mset(mapping map[string][]byte) os.Error {
         args[i+1] = string(v)
         i += 2
     }
-    _, err := client.sendCommand("MSET", args)
+    _, err := client.sendCommand("MSET", args...)
     if err != nil {
         return err
     }
@@ -437,7 +441,7 @@ func (client *Client) Msetnx(mapping map[string][]byte) (bool, os.Error) {
         args[i+1] = string(v)
         i += 2
     }
-    res, err := client.sendCommand("MSETNX", args)
+    res, err := client.sendCommand("MSETNX", args...)
     if err != nil {
         return false, err
     }
@@ -448,7 +452,7 @@ func (client *Client) Msetnx(mapping map[string][]byte) (bool, os.Error) {
 }
 
 func (client *Client) Incr(key string) (int64, os.Error) {
-    res, err := client.sendCommand("INCR", []string{key})
+    res, err := client.sendCommand("INCR", key)
     if err != nil {
         return -1, err
     }
@@ -457,7 +461,7 @@ func (client *Client) Incr(key string) (int64, os.Error) {
 }
 
 func (client *Client) Incrby(key string, val int64) (int64, os.Error) {
-    res, err := client.sendCommand("INCRBY", []string{key, strconv.Itoa64(val)})
+    res, err := client.sendCommand("INCRBY", key, strconv.Itoa64(val))
     if err != nil {
         return -1, err
     }
@@ -466,7 +470,7 @@ func (client *Client) Incrby(key string, val int64) (int64, os.Error) {
 }
 
 func (client *Client) Decr(key string) (int64, os.Error) {
-    res, err := client.sendCommand("DECR", []string{key})
+    res, err := client.sendCommand("DECR", key)
     if err != nil {
         return -1, err
     }
@@ -475,7 +479,7 @@ func (client *Client) Decr(key string) (int64, os.Error) {
 }
 
 func (client *Client) Decrby(key string, val int64) (int64, os.Error) {
-    res, err := client.sendCommand("DECRBY", []string{key, strconv.Itoa64(val)})
+    res, err := client.sendCommand("DECRBY", key, strconv.Itoa64(val))
     if err != nil {
         return -1, err
     }
@@ -484,7 +488,7 @@ func (client *Client) Decrby(key string, val int64) (int64, os.Error) {
 }
 
 func (client *Client) Append(key string, val []byte) os.Error {
-    _, err := client.sendCommand("APPEND", []string{key, string(val)})
+    _, err := client.sendCommand("APPEND", key, string(val))
 
     if err != nil {
         return err
@@ -494,7 +498,7 @@ func (client *Client) Append(key string, val []byte) os.Error {
 }
 
 func (client *Client) Substr(key string, start int, end int) ([]byte, os.Error) {
-    res, _ := client.sendCommand("SUBSTR", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    res, _ := client.sendCommand("SUBSTR", key, strconv.Itoa(start), strconv.Itoa(end))
 
     if res == nil {
         return nil, RedisError("Key `" + key + "` does not exist")
@@ -507,7 +511,7 @@ func (client *Client) Substr(key string, start int, end int) ([]byte, os.Error) 
 // List commands
 
 func (client *Client) Rpush(key string, val []byte) os.Error {
-    _, err := client.sendCommand("RPUSH", []string{key, string(val)})
+    _, err := client.sendCommand("RPUSH", key, string(val))
 
     if err != nil {
         return err
@@ -517,7 +521,7 @@ func (client *Client) Rpush(key string, val []byte) os.Error {
 }
 
 func (client *Client) Lpush(key string, val []byte) os.Error {
-    _, err := client.sendCommand("LPUSH", []string{key, string(val)})
+    _, err := client.sendCommand("LPUSH", key, string(val))
 
     if err != nil {
         return err
@@ -527,7 +531,7 @@ func (client *Client) Lpush(key string, val []byte) os.Error {
 }
 
 func (client *Client) Llen(key string) (int, os.Error) {
-    res, err := client.sendCommand("LLEN", []string{key})
+    res, err := client.sendCommand("LLEN", key)
     if err != nil {
         return -1, err
     }
@@ -536,7 +540,7 @@ func (client *Client) Llen(key string) (int, os.Error) {
 }
 
 func (client *Client) Lrange(key string, start int, end int) ([][]byte, os.Error) {
-    res, err := client.sendCommand("LRANGE", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    res, err := client.sendCommand("LRANGE", key, strconv.Itoa(start), strconv.Itoa(end))
     if err != nil {
         return nil, err
     }
@@ -545,7 +549,7 @@ func (client *Client) Lrange(key string, start int, end int) ([][]byte, os.Error
 }
 
 func (client *Client) Ltrim(key string, start int, end int) os.Error {
-    _, err := client.sendCommand("LTRIM", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    _, err := client.sendCommand("LTRIM", key, strconv.Itoa(start), strconv.Itoa(end))
     if err != nil {
         return err
     }
@@ -554,7 +558,7 @@ func (client *Client) Ltrim(key string, start int, end int) os.Error {
 }
 
 func (client *Client) Lindex(key string, index int) ([]byte, os.Error) {
-    res, err := client.sendCommand("LINDEX", []string{key, strconv.Itoa(index)})
+    res, err := client.sendCommand("LINDEX", key, strconv.Itoa(index))
     if err != nil {
         return nil, err
     }
@@ -563,7 +567,7 @@ func (client *Client) Lindex(key string, index int) ([]byte, os.Error) {
 }
 
 func (client *Client) Lset(key string, index int, value []byte) os.Error {
-    _, err := client.sendCommand("LSET", []string{key, strconv.Itoa(index), string(value)})
+    _, err := client.sendCommand("LSET", key, strconv.Itoa(index), string(value))
     if err != nil {
         return err
     }
@@ -572,7 +576,7 @@ func (client *Client) Lset(key string, index int, value []byte) os.Error {
 }
 
 func (client *Client) Lrem(key string, index int) (int, os.Error) {
-    res, err := client.sendCommand("LREM", []string{key, strconv.Itoa(index)})
+    res, err := client.sendCommand("LREM", key, strconv.Itoa(index))
     if err != nil {
         return -1, err
     }
@@ -581,7 +585,7 @@ func (client *Client) Lrem(key string, index int) (int, os.Error) {
 }
 
 func (client *Client) Lpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("LPOP", []string{key})
+    res, err := client.sendCommand("LPOP", key)
     if err != nil {
         return nil, err
     }
@@ -590,7 +594,7 @@ func (client *Client) Lpop(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Rpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("RPOP", []string{key})
+    res, err := client.sendCommand("RPOP", key)
     if err != nil {
         return nil, err
     }
@@ -599,7 +603,7 @@ func (client *Client) Rpop(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Blpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("BLPOP", []string{key})
+    res, err := client.sendCommand("BLPOP", key)
     if err != nil {
         return nil, err
     }
@@ -608,7 +612,7 @@ func (client *Client) Blpop(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Brpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("BRPOP", []string{key})
+    res, err := client.sendCommand("BRPOP", key)
     if err != nil {
         return nil, err
     }
@@ -617,7 +621,7 @@ func (client *Client) Brpop(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Rpoplpush(src string, dst string) ([]byte, os.Error) {
-    res, err := client.sendCommand("RPOPLPUSH", []string{src, dst})
+    res, err := client.sendCommand("RPOPLPUSH", src, dst)
     if err != nil {
         return nil, err
     }
@@ -628,7 +632,7 @@ func (client *Client) Rpoplpush(src string, dst string) ([]byte, os.Error) {
 // Set commands
 
 func (client *Client) Sadd(key string, value []byte) (bool, os.Error) {
-    res, err := client.sendCommand("SADD", []string{key, string(value)})
+    res, err := client.sendCommand("SADD", key, string(value))
 
     if err != nil {
         return false, err
@@ -638,7 +642,7 @@ func (client *Client) Sadd(key string, value []byte) (bool, os.Error) {
 }
 
 func (client *Client) Srem(key string, value []byte) (bool, os.Error) {
-    res, err := client.sendCommand("SREM", []string{key, string(value)})
+    res, err := client.sendCommand("SREM", key, string(value))
 
     if err != nil {
         return false, err
@@ -648,7 +652,7 @@ func (client *Client) Srem(key string, value []byte) (bool, os.Error) {
 }
 
 func (client *Client) Spop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("SPOP", []string{key})
+    res, err := client.sendCommand("SPOP", key)
     if err != nil {
         return nil, err
     }
@@ -662,7 +666,7 @@ func (client *Client) Spop(key string) ([]byte, os.Error) {
 }
 
 func (client *Client) Smove(src string, dst string, val []byte) (bool, os.Error) {
-    res, err := client.sendCommand("SMOVE", []string{src, dst, string(val)})
+    res, err := client.sendCommand("SMOVE", src, dst, string(val))
     if err != nil {
         return false, err
     }
@@ -671,7 +675,7 @@ func (client *Client) Smove(src string, dst string, val []byte) (bool, os.Error)
 }
 
 func (client *Client) Scard(key string) (int, os.Error) {
-    res, err := client.sendCommand("SCARD", []string{key})
+    res, err := client.sendCommand("SCARD", key)
     if err != nil {
         return -1, err
     }
@@ -680,7 +684,7 @@ func (client *Client) Scard(key string) (int, os.Error) {
 }
 
 func (client *Client) Sismember(key string, value []byte) (bool, os.Error) {
-    res, err := client.sendCommand("SISMEMBER", []string{key, string(value)})
+    res, err := client.sendCommand("SISMEMBER", key, string(value))
 
     if err != nil {
         return false, err
@@ -689,8 +693,8 @@ func (client *Client) Sismember(key string, value []byte) (bool, os.Error) {
     return res.(int64) == 1, nil
 }
 
-func (client *Client) Sinter(keys []string) ([][]byte, os.Error) {
-    res, err := client.sendCommand("SINTER", keys)
+func (client *Client) Sinter(keys ...string) ([][]byte, os.Error) {
+    res, err := client.sendCommand("SINTER", keys...)
     if err != nil {
         return nil, err
     }
@@ -698,11 +702,11 @@ func (client *Client) Sinter(keys []string) ([][]byte, os.Error) {
     return res.([][]byte), nil
 }
 
-func (client *Client) Sinterstore(dst string, keys []string) (int, os.Error) {
+func (client *Client) Sinterstore(dst string, keys ...string) (int, os.Error) {
     args := make([]string, len(keys)+1)
     args[0] = dst
     copy(args[1:], keys)
-    res, err := client.sendCommand("SINTERSTORE", args)
+    res, err := client.sendCommand("SINTERSTORE", args...)
     if err != nil {
         return 0, err
     }
@@ -710,8 +714,8 @@ func (client *Client) Sinterstore(dst string, keys []string) (int, os.Error) {
     return int(res.(int64)), nil
 }
 
-func (client *Client) Sunion(keys []string) ([][]byte, os.Error) {
-    res, err := client.sendCommand("SUNION", keys)
+func (client *Client) Sunion(keys ...string) ([][]byte, os.Error) {
+    res, err := client.sendCommand("SUNION", keys...)
     if err != nil {
         return nil, err
     }
@@ -719,11 +723,11 @@ func (client *Client) Sunion(keys []string) ([][]byte, os.Error) {
     return res.([][]byte), nil
 }
 
-func (client *Client) Sunionstore(dst string, keys []string) (int, os.Error) {
+func (client *Client) Sunionstore(dst string, keys ...string) (int, os.Error) {
     args := make([]string, len(keys)+1)
     args[0] = dst
     copy(args[1:], keys)
-    res, err := client.sendCommand("SUNIONSTORE", args)
+    res, err := client.sendCommand("SUNIONSTORE", args...)
     if err != nil {
         return 0, err
     }
@@ -735,7 +739,7 @@ func (client *Client) Sdiff(key1 string, keys []string) ([][]byte, os.Error) {
     args := make([]string, len(keys)+1)
     args[0] = key1
     copy(args[1:], keys)
-    res, err := client.sendCommand("SDIFF", args)
+    res, err := client.sendCommand("SDIFF", args...)
     if err != nil {
         return nil, err
     }
@@ -748,7 +752,7 @@ func (client *Client) Sdiffstore(dst string, key1 string, keys []string) (int, o
     args[0] = dst
     args[1] = key1
     copy(args[2:], keys)
-    res, err := client.sendCommand("SDIFFSTORE", args)
+    res, err := client.sendCommand("SDIFFSTORE", args...)
     if err != nil {
         return 0, err
     }
@@ -757,7 +761,7 @@ func (client *Client) Sdiffstore(dst string, key1 string, keys []string) (int, o
 }
 
 func (client *Client) Smembers(key string) ([][]byte, os.Error) {
-    res, err := client.sendCommand("SMEMBERS", []string{key})
+    res, err := client.sendCommand("SMEMBERS", key)
 
     if err != nil {
         return nil, err
@@ -767,7 +771,7 @@ func (client *Client) Smembers(key string) ([][]byte, os.Error) {
 }
 
 func (client *Client) Srandmember(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("SRANDMEMBER", []string{key})
+    res, err := client.sendCommand("SRANDMEMBER", key)
     if err != nil {
         return nil, err
     }
@@ -778,7 +782,7 @@ func (client *Client) Srandmember(key string) ([]byte, os.Error) {
 // sorted set commands
 
 func (client *Client) Zadd(key string, value []byte, score float64) (bool, os.Error) {
-    res, err := client.sendCommand("ZADD", []string{key, strconv.Ftoa64(score, 'f', -1), string(value)})
+    res, err := client.sendCommand("ZADD", key, strconv.Ftoa64(score, 'f', -1), string(value))
     if err != nil {
         return false, err
     }
@@ -787,7 +791,7 @@ func (client *Client) Zadd(key string, value []byte, score float64) (bool, os.Er
 }
 
 func (client *Client) Zrem(key string, value []byte) (bool, os.Error) {
-    res, err := client.sendCommand("ZREM", []string{key, string(value)})
+    res, err := client.sendCommand("ZREM", key, string(value))
     if err != nil {
         return false, err
     }
@@ -796,7 +800,7 @@ func (client *Client) Zrem(key string, value []byte) (bool, os.Error) {
 }
 
 func (client *Client) Zincrby(key string, value []byte, score float64) (float64, os.Error) {
-    res, err := client.sendCommand("ZINCRBY", []string{key, strconv.Ftoa64(score, 'f', -1), string(value)})
+    res, err := client.sendCommand("ZINCRBY", key, strconv.Ftoa64(score, 'f', -1), string(value))
     if err != nil {
         return 0, err
     }
@@ -807,7 +811,7 @@ func (client *Client) Zincrby(key string, value []byte, score float64) (float64,
 }
 
 func (client *Client) Zrank(key string, value []byte) (int, os.Error) {
-    res, err := client.sendCommand("ZRANK", []string{key, string(value)})
+    res, err := client.sendCommand("ZRANK", key, string(value))
     if err != nil {
         return 0, err
     }
@@ -816,7 +820,7 @@ func (client *Client) Zrank(key string, value []byte) (int, os.Error) {
 }
 
 func (client *Client) Zrevrank(key string, value []byte) (int, os.Error) {
-    res, err := client.sendCommand("ZREVRANK", []string{key, string(value)})
+    res, err := client.sendCommand("ZREVRANK", key, string(value))
     if err != nil {
         return 0, err
     }
@@ -825,7 +829,7 @@ func (client *Client) Zrevrank(key string, value []byte) (int, os.Error) {
 }
 
 func (client *Client) Zrange(key string, start int, end int) ([][]byte, os.Error) {
-    res, err := client.sendCommand("ZRANGE", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    res, err := client.sendCommand("ZRANGE", key, strconv.Itoa(start), strconv.Itoa(end))
     if err != nil {
         return nil, err
     }
@@ -834,7 +838,7 @@ func (client *Client) Zrange(key string, start int, end int) ([][]byte, os.Error
 }
 
 func (client *Client) Zrevrange(key string, start int, end int) ([][]byte, os.Error) {
-    res, err := client.sendCommand("ZREVRANGE", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    res, err := client.sendCommand("ZREVRANGE", key, strconv.Itoa(start), strconv.Itoa(end))
     if err != nil {
         return nil, err
     }
@@ -843,7 +847,7 @@ func (client *Client) Zrevrange(key string, start int, end int) ([][]byte, os.Er
 }
 
 func (client *Client) Zrangebyscore(key string, start float64, end float64) ([][]byte, os.Error) {
-    res, err := client.sendCommand("ZRANGEBYSCORE", []string{key, strconv.Ftoa64(start, 'f', -1), strconv.Ftoa64(end, 'f', -1)})
+    res, err := client.sendCommand("ZRANGEBYSCORE", key, strconv.Ftoa64(start, 'f', -1), strconv.Ftoa64(end, 'f', -1))
     if err != nil {
         return nil, err
     }
@@ -852,7 +856,7 @@ func (client *Client) Zrangebyscore(key string, start float64, end float64) ([][
 }
 
 func (client *Client) Zcard(key string) (int, os.Error) {
-    res, err := client.sendCommand("ZCARD", []string{key})
+    res, err := client.sendCommand("ZCARD", key)
     if err != nil {
         return -1, err
     }
@@ -861,7 +865,7 @@ func (client *Client) Zcard(key string) (int, os.Error) {
 }
 
 func (client *Client) Zscore(key string, member []byte) (float64, os.Error) {
-    res, err := client.sendCommand("ZSCORE", []string{key, string(member)})
+    res, err := client.sendCommand("ZSCORE", key, string(member))
     if err != nil {
         return 0, err
     }
@@ -872,7 +876,7 @@ func (client *Client) Zscore(key string, member []byte) (float64, os.Error) {
 }
 
 func (client *Client) Zremrangebyrank(key string, start int, end int) (int, os.Error) {
-    res, err := client.sendCommand("ZREMRANGEBYRANK", []string{key, strconv.Itoa(start), strconv.Itoa(end)})
+    res, err := client.sendCommand("ZREMRANGEBYRANK", key, strconv.Itoa(start), strconv.Itoa(end))
     if err != nil {
         return -1, err
     }
@@ -881,7 +885,7 @@ func (client *Client) Zremrangebyrank(key string, start int, end int) (int, os.E
 }
 
 func (client *Client) Zremrangebyscore(key string, start float64, end float64) (int, os.Error) {
-    res, err := client.sendCommand("ZREMRANGEBYSCORE", []string{key, strconv.Ftoa64(start, 'f', -1), strconv.Ftoa64(end, 'f', -1)})
+    res, err := client.sendCommand("ZREMRANGEBYSCORE", key, strconv.Ftoa64(start, 'f', -1), strconv.Ftoa64(end, 'f', -1))
     if err != nil {
         return -1, err
     }
@@ -892,7 +896,7 @@ func (client *Client) Zremrangebyscore(key string, start float64, end float64) (
 // hash commands
 
 func (client *Client) Hset(key string, field string, val []byte) (bool, os.Error) {
-    res, err := client.sendCommand("HSET", []string{key, field, string(val)})
+    res, err := client.sendCommand("HSET", key, field, string(val))
     if err != nil {
         return false, err
     }
@@ -901,7 +905,7 @@ func (client *Client) Hset(key string, field string, val []byte) (bool, os.Error
 }
 
 func (client *Client) Hget(key string, field string) ([]byte, os.Error) {
-    res, _ := client.sendCommand("HGET", []string{key, field})
+    res, _ := client.sendCommand("HGET", key, field)
 
     if res == nil {
         return nil, RedisError("Hget failed")
@@ -1000,7 +1004,7 @@ func (client *Client) Hmset(key string, mapping interface{}) os.Error {
     if err != nil {
         return err
     }
-    _, err = client.sendCommand("HMSET", *args)
+    _, err = client.sendCommand("HMSET", *args...)
     if err != nil {
         return err
     }
@@ -1008,7 +1012,7 @@ func (client *Client) Hmset(key string, mapping interface{}) os.Error {
 }
 
 func (client *Client) Hincrby(key string, field string, val int64) (int64, os.Error) {
-    res, err := client.sendCommand("HINCRBY", []string{key, field, strconv.Itoa64(val)})
+    res, err := client.sendCommand("HINCRBY", key, field, strconv.Itoa64(val))
     if err != nil {
         return -1, err
     }
@@ -1017,7 +1021,7 @@ func (client *Client) Hincrby(key string, field string, val int64) (int64, os.Er
 }
 
 func (client *Client) Hexists(key string, field string) (bool, os.Error) {
-    res, err := client.sendCommand("HEXISTS", []string{key, field})
+    res, err := client.sendCommand("HEXISTS", key, field)
     if err != nil {
         return false, err
     }
@@ -1025,7 +1029,7 @@ func (client *Client) Hexists(key string, field string) (bool, os.Error) {
 }
 
 func (client *Client) Hdel(key string, field string) (bool, os.Error) {
-    res, err := client.sendCommand("HDEL", []string{key, field})
+    res, err := client.sendCommand("HDEL", key, field)
 
     if err != nil {
         return false, err
@@ -1035,7 +1039,7 @@ func (client *Client) Hdel(key string, field string) (bool, os.Error) {
 }
 
 func (client *Client) Hlen(key string) (int, os.Error) {
-    res, err := client.sendCommand("HLEN", []string{key})
+    res, err := client.sendCommand("HLEN", key)
     if err != nil {
         return -1, err
     }
@@ -1044,7 +1048,7 @@ func (client *Client) Hlen(key string) (int, os.Error) {
 }
 
 func (client *Client) Hkeys(key string) ([]string, os.Error) {
-    res, err := client.sendCommand("HKEYS", []string{key})
+    res, err := client.sendCommand("HKEYS", key)
 
     if err != nil {
         return nil, err
@@ -1059,7 +1063,7 @@ func (client *Client) Hkeys(key string) ([]string, os.Error) {
 }
 
 func (client *Client) Hvals(key string) ([][]byte, os.Error) {
-    res, err := client.sendCommand("HVALS", []string{key})
+    res, err := client.sendCommand("HVALS", key)
 
     if err != nil {
         return nil, err
@@ -1144,7 +1148,7 @@ func writeToContainer(data [][]byte, val reflect.Value) os.Error {
 
 
 func (client *Client) Hgetall(key string, val interface{}) os.Error {
-    res, err := client.sendCommand("HGETALL", []string{key})
+    res, err := client.sendCommand("HGETALL", key)
     if err != nil {
         return err
     }
@@ -1164,7 +1168,7 @@ func (client *Client) Hgetall(key string, val interface{}) os.Error {
 //Server commands
 
 func (client *Client) Save() os.Error {
-    _, err := client.sendCommand("SAVE", nil)
+    _, err := client.sendCommand("SAVE")
     if err != nil {
         return err
     }
@@ -1172,7 +1176,7 @@ func (client *Client) Save() os.Error {
 }
 
 func (client *Client) Bgsave() os.Error {
-    _, err := client.sendCommand("BGSAVE", nil)
+    _, err := client.sendCommand("BGSAVE")
     if err != nil {
         return err
     }
@@ -1180,7 +1184,7 @@ func (client *Client) Bgsave() os.Error {
 }
 
 func (client *Client) Lastsave() (int64, os.Error) {
-    res, err := client.sendCommand("LASTSAVE", nil)
+    res, err := client.sendCommand("LASTSAVE")
     if err != nil {
         return 0, err
     }
@@ -1189,7 +1193,7 @@ func (client *Client) Lastsave() (int64, os.Error) {
 }
 
 func (client *Client) Bgrewriteaof() os.Error {
-    _, err := client.sendCommand("BGREWRITEAOF", nil)
+    _, err := client.sendCommand("BGREWRITEAOF")
     if err != nil {
         return err
     }
