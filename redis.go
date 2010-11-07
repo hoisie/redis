@@ -225,8 +225,7 @@ func (client *Client) Auth(password string) os.Error {
 }
 
 func (client *Client) Exists(key string) (bool, os.Error) {
-    cmd := fmt.Sprintf("EXISTS %s\r\n", key)
-    res, err := client.sendCommand(cmd, key)
+    res, err := client.sendCommand("EXISTS", key)
     if err != nil {
         return false, err
     }
