@@ -291,6 +291,25 @@ func TestSubscribe(t *testing.T) {
     close(subscribe)
 }
 
+func TestSimpleSubscribe(t *testing.T) {
+    sub := make(chan string, 1)
+    messages := make(chan Message, 0)
+    go client.Subscribe(sub, nil, nil, nil, messages)
+
+    sub <- "foo"
+    time.Sleep(10 * 1000 * 1000) // 10ms
+    data := "bar"
+    client.Publish("foo", []byte(data))
+
+    msg := <-messages
+    if string(msg.Message) != data {
+        t.Fatalf("Expected %s but got %s", data, string(msg.Message))
+    }
+
+    close(sub)
+    close(messages)
+}
+
 func TestUnsubscribe(t *testing.T) {
     subscribe := make(chan string, 0)
     unsubscribe := make(chan string, 0)

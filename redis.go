@@ -24,8 +24,6 @@ type Client struct {
     Addr     string
     Db       int
     Password string
-    //the channel for pub/sub commands
-    Messages chan []byte
     //the connection pool
     pool chan *net.TCPConn
 }
@@ -1276,13 +1274,18 @@ func (client *Client) Hgetall(key string, val interface{}) os.Error {
 
 //Publish/Subscribe
 
+// Container for messages received from publishers on channels that we're subscribed to.
 type Message struct {
     ChannelMatched string
     Channel        string
     Message        []byte
 }
 
-// Subscribe to channels, will block until the subscribe channel is closed.
+// Subscribe to redis serve channels, this method will block until one of the sub/unsub channels are closed.
+// There are two pairs of channels subscribe/unsubscribe & psubscribe/punsubscribe.
+// The former does an exact match on the channel, the later uses glob patterns on the redis channels.
+// Closing either of these channels will unblock this method call.
+// Messages that are received are sent down the messages channel.
 func (client *Client) Subscribe(subscribe <-chan string, unsubscribe <-chan string, psubscribe <-chan string, punsubscribe <-chan string, messages chan<- Message) os.Error {
     cmds := make(chan []string, 0)
     data := make(chan interface{}, 0)
@@ -1344,6 +1347,7 @@ func (client *Client) Subscribe(subscribe <-chan string, unsubscribe <-chan stri
     return err
 }
 
+// Publish a message to a redis server.
 func (client *Client) Publish(channel string, val []byte) os.Error {
     _, err := client.sendCommand("PUBLISH", channel, string(val))
     if err != nil {

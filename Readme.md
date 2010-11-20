@@ -49,12 +49,27 @@ Most of the examples connect to a redis database running in the default port -- 
     }
     client.Del("l")
 
+### Publish/Subscribe
+    sub := make(chan string, 1)
+    sub <- "foo"
+    messages := make(chan Message, 0)
+    go client.Subscribe(sub, nil, nil, nil, messages)
+
+    time.Sleep(10 * 1000 * 1000)
+    client.Publish("foo", []byte("bar"))
+
+    msg := <-messages
+    println("received from:", msg.Channel, " message:", string(msg.Message))
+
+    close(sub)
+    close(messages)
+
+
 More examples coming soon. See `redis_test.go` for more usage examples.
 
 ## Commands not supported yet
 
 * MULTI/EXEC/DISCARD/WATCH/UNWATCH
-* SUBSCRIBE/UNSUBSCRIBE/PUBLISH
 * SORT
 * ZUNIONSTORE / ZINTERSTORE
 
