@@ -47,19 +47,37 @@ func readBulk(reader *bufio.Reader, head string) ([]byte, os.Error) {
             return nil, err
         }
     }
-    if head[0] != '$' {
-        return nil, RedisError("Expecting Prefix '$'")
-    }
+    switch head[0] {
+    case ':':
+        data = []byte(strings.TrimSpace(head[1:]))
 
-    size, err := strconv.Atoi(strings.TrimSpace(head[1:]))
-
-    if size == -1 {
-        return nil, doesNotExist
+    case '$':
+        size, err := strconv.Atoi(strings.TrimSpace(head[1:]))
+        if err != nil {
+            return nil, err
+        }
+        if size == -1 {
+            return nil, doesNotExist
+        }
+        lr := io.LimitReader(reader, int64(size))
+        data, err = ioutil.ReadAll(lr)
+        if err == nil {
+            // read end of line
+            _, err = reader.ReadString('\n')
+        }
+    default:
+        return nil, RedisError("Expecting Prefix '$' or ':'")
     }
-    lr := io.LimitReader(reader, int64(size))
-    data, err = ioutil.ReadAll(lr)
 
     return data, err
+}
+
+func commandBytes(cmd string, args ...string) []byte {
+    cmdbuf := bytes.NewBufferString(fmt.Sprintf("*%d\r\n$%d\r\n%s\r\n", len(args)+1, len(cmd), cmd))
+    for _, s := range args {
+        cmdbuf.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s))
+    }
+    return cmdbuf.Bytes()
 }
 
 func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
@@ -113,15 +131,10 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
             if err != nil {
                 return nil, err
             }
-            //read the end line
-            _, err = reader.ReadString('\n')
-            if err != nil {
-                return nil, err
-            }
+            // dont read end of line as might not have been bulk
         }
         return res, nil
     }
-
     return readBulk(reader, line)
 }
 
@@ -174,10 +187,6 @@ func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
 
 
 func (client *Client) sendCommand(cmd string, args ...string) (data interface{}, err os.Error) {
-    cmdbuf := bytes.NewBufferString(fmt.Sprintf("*%d\r\n$%d\r\n%s\r\n", len(args)+1, len(cmd), cmd))
-    for _, s := range args {
-        cmdbuf.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s))
-    }
 
     if client.pool == nil {
         client.pool = make(chan *net.TCPConn, MaxPoolSize)
@@ -195,14 +204,16 @@ func (client *Client) sendCommand(cmd string, args ...string) (data interface{},
             goto End
         }
     }
-    data, err = client.rawSend(c, cmdbuf.Bytes())
+
+    b := commandBytes(cmd, args...)
+    data, err = client.rawSend(c, b)
     if err == os.EOF {
         c, err = client.openConnection()
         if err != nil {
             goto End
         }
 
-        data, err = client.rawSend(c, cmdbuf.Bytes())
+        data, err = client.rawSend(c, b)
     }
 
 End:
