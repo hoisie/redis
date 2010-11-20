@@ -241,15 +241,19 @@ func TestBlpopTimeout(t *testing.T) {
 func TestSubscribe(t *testing.T) {
     subscribe := make(chan string, 0)
     unsubscribe := make(chan string, 0)
+    psubscribe := make(chan string, 0)
+    punsubscribe := make(chan string, 0)
     messages := make(chan Message, 0)
 
     defer func() {
         close(subscribe)
         close(unsubscribe)
+        close(psubscribe)
+        close(punsubscribe)
         close(messages)
     }()
     go func() {
-        if err := client.Subscribe(subscribe, unsubscribe, messages); err != nil {
+        if err := client.Subscribe(subscribe, unsubscribe, psubscribe, punsubscribe, messages); err != nil {
             t.Fatal("Subscribed failed", err.String())
         }
     }()
@@ -261,14 +265,13 @@ func TestSubscribe(t *testing.T) {
     go func() {
         tick := time.Tick(10 * 1000 * 1000)     // 10ms
         timeout := time.Tick(100 * 1000 * 1000) // 100ms
-    LOOP:
+
         for {
             select {
             case <-quit:
-                break LOOP
+                return
             case <-timeout:
                 t.Fatal("TestSubscribe timeout")
-                break LOOP
             case <-tick:
                 if err := client.Publish("ccc", data); err != nil {
                     t.Fatal("Pubish failed", err.String())
@@ -280,6 +283,122 @@ func TestSubscribe(t *testing.T) {
     msg := <-messages
     quit <- true
     if msg.Channel != "ccc" {
+        t.Fatal("Unexpected channel name")
+    }
+    if string(msg.Message) != string(data) {
+        t.Fatalf("Expected %s but got %s", string(data), string(msg.Message))
+    }
+    close(subscribe)
+}
+
+func TestUnsubscribe(t *testing.T) {
+    subscribe := make(chan string, 0)
+    unsubscribe := make(chan string, 0)
+    psubscribe := make(chan string, 0)
+    punsubscribe := make(chan string, 0)
+    messages := make(chan Message, 0)
+
+    defer func() {
+        close(subscribe)
+        close(unsubscribe)
+        close(psubscribe)
+        close(punsubscribe)
+        close(messages)
+    }()
+    go func() {
+        if err := client.Subscribe(subscribe, unsubscribe, psubscribe, punsubscribe, messages); err != nil {
+            t.Fatal("Subscribed failed", err.String())
+        }
+    }()
+    subscribe <- "ccc"
+
+    data := []byte("foo")
+    quit := make(chan bool, 0)
+    defer close(quit)
+    go func() {
+        tick := time.Tick(10 * 1000 * 1000) // 10ms
+
+        for i := 0; i < 10; i++ {
+            <-tick
+            if err := client.Publish("ccc", data); err != nil {
+                t.Fatal("Pubish failed", err.String())
+            }
+        }
+        quit <- true
+    }()
+
+    msgs := 0
+    for !closed(subscribe) {
+        select {
+        case msg := <-messages:
+            if string(msg.Message) != string(data) {
+                t.Fatalf("Expected %s but got %s", string(data), string(msg.Message))
+            }
+
+            // Unsubscribe after first message
+            if msgs == 0 {
+                unsubscribe <- "ccc"
+            }
+            msgs++
+        case <-quit:
+            // Allow for a little delay and extra async messages getting through
+            if msgs > 3 {
+                t.Fatalf("Expected to have unsubscribed after 1 message but received %d", msgs)
+            }
+            return
+        }
+    }
+}
+
+
+func TestPSubscribe(t *testing.T) {
+    subscribe := make(chan string, 0)
+    unsubscribe := make(chan string, 0)
+    psubscribe := make(chan string, 0)
+    punsubscribe := make(chan string, 0)
+    messages := make(chan Message, 0)
+
+    defer func() {
+        close(subscribe)
+        close(unsubscribe)
+        close(psubscribe)
+        close(punsubscribe)
+        close(messages)
+    }()
+    go func() {
+        if err := client.Subscribe(subscribe, unsubscribe, psubscribe, punsubscribe, messages); err != nil {
+            t.Fatal("Subscribed failed", err.String())
+        }
+    }()
+    psubscribe <- "ccc.*"
+
+    data := []byte("foo")
+    quit := make(chan bool, 0)
+    defer close(quit)
+    go func() {
+        tick := time.Tick(10 * 1000 * 1000)     // 10ms
+        timeout := time.Tick(100 * 1000 * 1000) // 100ms
+
+        for {
+            select {
+            case <-quit:
+                return
+            case <-timeout:
+                t.Fatal("TestSubscribe timeout")
+            case <-tick:
+                if err := client.Publish("ccc.foo", data); err != nil {
+                    t.Fatal("Pubish failed", err.String())
+                }
+            }
+        }
+    }()
+
+    msg := <-messages
+    quit <- true
+    if msg.Channel != "ccc.foo" {
+        t.Fatal("Unexpected channel name")
+    }
+    if msg.ChannelMatched != "ccc.*" {
         t.Fatal("Unexpected channel name")
     }
     if string(msg.Message) != string(data) {

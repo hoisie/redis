@@ -1277,32 +1277,36 @@ func (client *Client) Hgetall(key string, val interface{}) os.Error {
 //Publish/Subscribe
 
 type Message struct {
-    Channel string
-    Message []byte
+    ChannelMatched string
+    Channel        string
+    Message        []byte
 }
 
 // Subscribe to channels, will block until the subscribe channel is closed.
-func (client *Client) Subscribe(subscribe <-chan string, unsubscribe <-chan string, messages chan<- Message) os.Error {
+func (client *Client) Subscribe(subscribe <-chan string, unsubscribe <-chan string, psubscribe <-chan string, punsubscribe <-chan string, messages chan<- Message) os.Error {
     cmds := make(chan []string, 0)
     data := make(chan interface{}, 0)
 
     go func() {
-    CHANNELS:
         for {
-            select {
-            case channel := <-subscribe:
-                if channel == "" {
-                    break CHANNELS
-                } else {
-                    cmds <- []string{"SUBSCRIBE", channel}
-                }
+            var channel string
+            var cmd string
 
-            case channel := <-unsubscribe:
-                if channel == "" {
-                    break CHANNELS
-                } else {
-                    cmds <- []string{"UNSUBSCRIBE", channel}
-                }
+            select {
+            case channel = <-subscribe:
+                cmd = "SUBSCRIBE"
+            case channel = <-unsubscribe:
+                cmd = "UNSUBSCRIBE"
+            case channel = <-psubscribe:
+                cmd = "PSUBSCRIBE"
+            case channel = <-punsubscribe:
+                cmd = "UNPSUBSCRIBE"
+
+            }
+            if channel == "" {
+                break
+            } else {
+                cmds <- []string{cmd, channel}
             }
         }
         close(cmds)
@@ -1312,14 +1316,23 @@ func (client *Client) Subscribe(subscribe <-chan string, unsubscribe <-chan stri
     go func() {
         for response := range data {
             db := response.([][]byte)
-            messageType, channel, message := string(db[0]), string(db[1]), db[2]
+            messageType := string(db[0])
             switch messageType {
             case "message":
-                messages <- Message{string(channel), message}
+                channel, message := string(db[1]), db[2]
+                messages <- Message{channel, channel, message}
             case "subscribe":
                 // Ignore
             case "unsubscribe":
                 // Ignore
+            case "pmessage":
+                channelMatched, channel, message := string(db[1]), string(db[2]), db[3]
+                messages <- Message{channelMatched, channel, message}
+            case "psubscribe":
+                // Ignore
+            case "punsubscribe":
+                // Ignore
+
             default:
                 // log.Printf("Unknown message '%s'", messageType)
             }
