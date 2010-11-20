@@ -188,21 +188,11 @@ func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
 
 func (client *Client) sendCommand(cmd string, args ...string) (data interface{}, err os.Error) {
 
-    if client.pool == nil {
-        client.pool = make(chan *net.TCPConn, MaxPoolSize)
-        for i := 0; i < MaxPoolSize; i++ {
-            //add dummy values to the pool
-            client.pool <- nil
-        }
-    }
     // grab a connection from the pool
-    c := <-client.pool
+    c, err := client.popCon()
 
-    if c == nil {
-        c, err = client.openConnection()
-        if err != nil {
-            goto End
-        }
+    if err != nil {
+        goto End
     }
 
     b := commandBytes(cmd, args...)
@@ -219,9 +209,30 @@ func (client *Client) sendCommand(cmd string, args ...string) (data interface{},
 End:
 
     //add the client back to the queue
-    client.pool <- c
+    client.pushCon(c)
 
     return data, err
+}
+
+func (client *Client) popCon() (*net.TCPConn, os.Error) {
+    if client.pool == nil {
+        client.pool = make(chan *net.TCPConn, MaxPoolSize)
+        for i := 0; i < MaxPoolSize; i++ {
+            //add dummy values to the pool
+            client.pool <- nil
+        }
+    }
+    // grab a connection from the pool
+    c := <-client.pool
+
+    if c == nil {
+        return client.openConnection()
+    }
+    return c, nil
+}
+
+func (client *Client) pushCon(c *net.TCPConn) {
+    client.pool <- c
 }
 
 // General Commands
