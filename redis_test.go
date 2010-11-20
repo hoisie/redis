@@ -9,6 +9,7 @@ import (
     "runtime"
     "strconv"
     "strings"
+    "time"
     "testing"
 )
 
@@ -171,6 +172,70 @@ func TestList(t *testing.T) {
 
     client.Del("l")
 
+}
+
+func TestBrpop(t *testing.T) {
+    go func() {
+        time.Sleep(100 * 1000)
+        if err := client.Lpush("l", []byte("a")); err != nil {
+            t.Fatal("Lpush failed", err.String())
+        }
+    }()
+    key, value, err := client.Brpop([]string{"l"}, 1)
+    if err != nil {
+        t.Fatal("Brpop failed", err.String())
+    }
+    if *key != "l" {
+        t.Fatalf("Expected %s but got %s", "l", *key)
+    }
+    if string(value) != "a" {
+        t.Fatalf("Expected %s but got %s", "a", string(value))
+    }
+}
+
+func TestBlpop(t *testing.T) {
+    go func() {
+        time.Sleep(100 * 1000)
+        if err := client.Lpush("l", []byte("a")); err != nil {
+            t.Fatal("Lpush failed", err.String())
+        }
+    }()
+    key, value, err := client.Blpop([]string{"l"}, 1)
+    if err != nil {
+        t.Fatal("Blpop failed", err.String())
+    }
+    if *key != "l" {
+        t.Fatalf("Expected %s but got %s", "l", *key)
+    }
+    if string(value) != "a" {
+        t.Fatalf("Expected %s but got %s", "a", string(value))
+    }
+}
+
+func TestBrpopTimeout(t *testing.T) {
+    key, value, err := client.Brpop([]string{"l"}, 1)
+    if err != nil {
+        t.Fatal("BrpopTimeout failed", err.String())
+    }
+    if key != nil {
+        t.Fatalf("Expected %s but got %s", "", key)
+    }
+    if value != nil {
+        t.Fatalf("Expected %s but got %s", nil, value)
+    }
+}
+
+func TestBlpopTimeout(t *testing.T) {
+    key, value, err := client.Blpop([]string{"l"}, 1)
+    if err != nil {
+        t.Fatal("BlpopTimeout failed", err.String())
+    }
+    if key != nil {
+        t.Fatalf("Expected %s but got %s", "", key)
+    }
+    if value != nil {
+        t.Fatalf("Expected %s but got %s", nil, value)
+    }
 }
 
 func verifyHash(t *testing.T, key string, expected map[string][]byte) {

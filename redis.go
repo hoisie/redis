@@ -601,22 +601,27 @@ func (client *Client) Rpop(key string) ([]byte, os.Error) {
     return res.([]byte), nil
 }
 
-func (client *Client) Blpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("BLPOP", key)
-    if err != nil {
-        return nil, err
-    }
-
-    return res.([]byte), nil
+func (client *Client) Blpop(keys []string, timeoutSecs uint) (*string, []byte, os.Error) {
+    return client.bpop("BLPOP", keys, timeoutSecs)
+}
+func (client *Client) Brpop(keys []string, timeoutSecs uint) (*string, []byte, os.Error) {
+    return client.bpop("BRPOP", keys, timeoutSecs)
 }
 
-func (client *Client) Brpop(key string) ([]byte, os.Error) {
-    res, err := client.sendCommand("BRPOP", key)
+func (client *Client) bpop(cmd string, keys []string, timeoutSecs uint) (*string, []byte, os.Error) {
+    args := append(keys, strconv.Uitoa(timeoutSecs))
+    res, err := client.sendCommand(cmd, args...)
     if err != nil {
-        return nil, err
+        return nil, nil, err
     }
-
-    return res.([]byte), nil
+    kv := res.([][]byte)
+    // Check for timeout
+    if len(kv) != 2 {
+        return nil, nil, nil
+    }
+    k := string(kv[0])
+    v := kv[1]
+    return &k, v, nil
 }
 
 func (client *Client) Rpoplpush(src string, dst string) ([]byte, os.Error) {
