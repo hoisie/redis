@@ -238,6 +238,56 @@ func TestBlpopTimeout(t *testing.T) {
     }
 }
 
+func TestSubscribe(t *testing.T) {
+    subscribe := make(chan string, 0)
+    unsubscribe := make(chan string, 0)
+    messages := make(chan Message, 0)
+
+    defer func() {
+        close(subscribe)
+        close(unsubscribe)
+        close(messages)
+    }()
+    go func() {
+        if err := client.Subscribe(subscribe, unsubscribe, messages); err != nil {
+            t.Fatal("Subscribed failed", err.String())
+        }
+    }()
+    subscribe <- "ccc"
+
+    data := []byte("foo")
+    quit := make(chan bool, 0)
+    defer close(quit)
+    go func() {
+        tick := time.Tick(10 * 1000 * 1000)     // 10ms
+        timeout := time.Tick(100 * 1000 * 1000) // 100ms
+    LOOP:
+        for {
+            select {
+            case <-quit:
+                break LOOP
+            case <-timeout:
+                t.Fatal("TestSubscribe timeout")
+                break LOOP
+            case <-tick:
+                if err := client.Publish("ccc", data); err != nil {
+                    t.Fatal("Pubish failed", err.String())
+                }
+            }
+        }
+    }()
+
+    msg := <-messages
+    quit <- true
+    if msg.Channel != "ccc" {
+        t.Fatal("Unexpected channel name")
+    }
+    if string(msg.Message) != string(data) {
+        t.Fatalf("Expected %s but got %s", string(data), string(msg.Message))
+    }
+    close(subscribe)
+}
+
 func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hget
     m1 := make(map[string][]byte)
