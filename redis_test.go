@@ -115,7 +115,11 @@ func TestSet(t *testing.T) {
     var members [][]byte
 
     if members, err = client.Smembers("s"); err != nil || len(members) != 5 {
-        t.Fatal("Set setup failed", err.String())
+        if err != nil {
+            t.Fatal("Set setup failed", err.String())
+        } else {
+            t.Fatalf("Expected %d members but got %d", 5, len(members))
+        }
     }
 
     for _, v := range vals {
@@ -131,7 +135,11 @@ func TestSet(t *testing.T) {
     }
 
     if members, err = client.Smembers("s"); err != nil || len(members) != 0 {
-        t.Fatal("Set setup failed", err.String())
+        if err != nil {
+            t.Fatal("Set setup failed", err.String())
+        } else {
+            t.Fatalf("Expected %d members but got %d", 0, len(members))
+        }
     }
 
     client.Del("s")
@@ -149,12 +157,20 @@ func TestList(t *testing.T) {
     }
 
     if l, err := client.Llen("l"); err != nil || l != 5 {
-        t.Fatal("Llen failed", err.String())
+        if err != nil {
+            t.Fatal("Llen failed", err.String())
+        } else {
+            t.Fatal("Llen failed, list wrong length", l)
+        }
     }
 
     for i := 0; i < len(vals); i++ {
         if val, err := client.Lindex("l", i); err != nil || string(val) != vals[i] {
-            t.Fatal("Lindex failed", err.String())
+            if err != nil {
+                t.Fatal("Lindex failed", err.String())
+            } else {
+                t.Fatalf("Expected %s but got %s", vals[i], string(val))
+            }
         }
     }
 
@@ -166,7 +182,11 @@ func TestList(t *testing.T) {
 
     for i := 0; i < len(vals); i++ {
         if val, err := client.Lindex("l", i); err != nil || string(val) != "a" {
-            t.Fatal("Lindex failed", err.String())
+            if err != nil {
+                t.Fatal("Lindex failed", err.String())
+            } else {
+                t.Fatalf("Expected %s but got %s", "a", string(val))
+            }
         }
     }
 
@@ -218,10 +238,10 @@ func TestBrpopTimeout(t *testing.T) {
         t.Fatal("BrpopTimeout failed", err.String())
     }
     if key != nil {
-        t.Fatalf("Expected %s but got %s", "", key)
+        t.Fatalf("Expected nil but got '%s'", *key)
     }
     if value != nil {
-        t.Fatalf("Expected %s but got %s", nil, value)
+        t.Fatalf("Expected nil but got '%s'", value)
     }
 }
 
@@ -231,10 +251,10 @@ func TestBlpopTimeout(t *testing.T) {
         t.Fatal("BlpopTimeout failed", err.String())
     }
     if key != nil {
-        t.Fatalf("Expected %s but got %s", "", key)
+        t.Fatalf("Expected nil but got '%s'", *key)
     }
     if value != nil {
-        t.Fatalf("Expected %s but got %s", nil, value)
+        t.Fatalf("Expected nil but got '%s'", value)
     }
 }
 
