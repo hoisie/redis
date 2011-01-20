@@ -15,15 +15,16 @@ import (
 )
 
 const (
-    MaxPoolSize = 5
+    defaultPoolSize = 5
 )
 
 var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:7379")
 
 type Client struct {
-    Addr     string
-    Db       int
-    Password string
+    Addr        string
+    Db          int
+    Password    string
+    MaxPoolSize int
     //the connection pool
     pool chan *net.TCPConn
 }
@@ -297,8 +298,12 @@ End:
 
 func (client *Client) popCon() (*net.TCPConn, os.Error) {
     if client.pool == nil {
-        client.pool = make(chan *net.TCPConn, MaxPoolSize)
-        for i := 0; i < MaxPoolSize; i++ {
+        poolSize := client.MaxPoolSize
+        if poolSize == 0 {
+            poolSize = defaultPoolSize
+        }
+        client.pool = make(chan *net.TCPConn, poolSize)
+        for i := 0; i < poolSize; i++ {
             //add dummy values to the pool
             client.pool <- nil
         }
