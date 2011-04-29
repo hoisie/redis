@@ -18,14 +18,14 @@ const (
     MaxPoolSize = 5
 )
 
-var defaultAddr, _ = net.ResolveTCPAddr("127.0.0.1:7379")
+var defaultAddr = "127.0.0.1:7379"
 
 type Client struct {
     Addr     string
     Db       int
     Password string
     //the connection pool
-    pool chan *net.TCPConn
+    pool chan net.Conn
 }
 
 type RedisError string
@@ -142,7 +142,7 @@ func readResponse(reader *bufio.Reader) (interface{}, os.Error) {
     return readBulk(reader, line)
 }
 
-func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error) {
+func (client *Client) rawSend(c net.Conn, cmd []byte) (interface{}, os.Error) {
     _, err := c.Write(cmd)
     if err != nil {
         return nil, err
@@ -158,21 +158,14 @@ func (client *Client) rawSend(c *net.TCPConn, cmd []byte) (interface{}, os.Error
     return data, nil
 }
 
-func (client *Client) openConnection() (c *net.TCPConn, err os.Error) {
+func (client *Client) openConnection() (c net.Conn, err os.Error) {
 
     var addr = defaultAddr
 
     if client.Addr != "" {
-        addr, err = net.ResolveTCPAddr(client.Addr)
-
-        if err != nil {
-            return
-        }
-
+        addr = client.Addr
     }
-
-    c, err = net.DialTCP("tcp", nil, addr)
-
+    c, err = net.Dial("tcp", addr)
     if err != nil {
         return
     }
@@ -256,9 +249,7 @@ func (client *Client) sendCommands(cmdArgs <-chan []string, data chan<- interfac
         for cmdArg := range cmdArgs {
             err = writeRequest(c, cmdArg[0], cmdArg[1:]...)
             if err != nil {
-                if !closed(errs) {
-                    errs <- err
-                }
+                errs <- err
                 break
             }
         }
@@ -269,9 +260,7 @@ func (client *Client) sendCommands(cmdArgs <-chan []string, data chan<- interfac
         for {
             response, err := readResponse(reader)
             if err != nil {
-                if !closed(errs) {
-                    errs <- err
-                }
+                errs <- err
                 break
             }
             data <- response
@@ -295,9 +284,9 @@ End:
     return err
 }
 
-func (client *Client) popCon() (*net.TCPConn, os.Error) {
+func (client *Client) popCon() (net.Conn, os.Error) {
     if client.pool == nil {
-        client.pool = make(chan *net.TCPConn, MaxPoolSize)
+        client.pool = make(chan net.Conn, MaxPoolSize)
         for i := 0; i < MaxPoolSize; i++ {
             //add dummy values to the pool
             client.pool <- nil
@@ -312,7 +301,7 @@ func (client *Client) popCon() (*net.TCPConn, os.Error) {
     return c, nil
 }
 
-func (client *Client) pushCon(c *net.TCPConn) {
+func (client *Client) pushCon(c net.Conn) {
     client.pool <- c
 }
 
@@ -1025,44 +1014,44 @@ func (client *Client) Hget(key string, field string) ([]byte, os.Error) {
 //pretty much copy the json code from here.
 
 func valueToString(v reflect.Value) (string, os.Error) {
-    if v == nil {
+    if !v.IsValid() {
         return "null", nil
     }
 
-    switch v := v.(type) {
-    case *reflect.PtrValue:
+    switch v.Kind() {
+    case reflect.Ptr:
         return valueToString(reflect.Indirect(v))
-    case *reflect.InterfaceValue:
+    case reflect.Interface:
         return valueToString(v.Elem())
-    case *reflect.BoolValue:
-        x := v.Get()
+    case reflect.Bool:
+        x := v.Bool()
         if x {
             return "true", nil
         } else {
             return "false", nil
         }
 
-    case *reflect.IntValue:
-        return strconv.Itoa64(v.Get()), nil
-    case *reflect.UintValue:
-        return strconv.Uitoa64(v.Get()), nil
-    case *reflect.UnsafePointerValue:
-        return strconv.Uitoa64(uint64(v.Get())), nil
+    case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+        return strconv.Itoa64(v.Int()), nil
+    case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+        return strconv.Uitoa64(v.Uint()), nil
+    case reflect.UnsafePointer:
+        return strconv.Uitoa64(uint64(v.Pointer())), nil
 
-    case *reflect.FloatValue:
-        return strconv.Ftoa64(v.Get(), 'g', -1), nil
+    case reflect.Float32, reflect.Float64:
+        return strconv.Ftoa64(v.Float(), 'g', -1), nil
 
-    case *reflect.StringValue:
-        return v.Get(), nil
+    case reflect.String:
+        return v.String(), nil
 
     //This is kind of a rough hack to replace the old []byte
     //detection with reflect.Uint8Type, it doesn't catch
     //zero-length byte slices
-    case *reflect.SliceValue:
-        typ := v.Type().(*reflect.SliceType)
-        if _, ok := typ.Elem().(*reflect.UintType); ok {
+    case reflect.Slice:
+        typ := v.Type()
+        if typ.Elem().Kind() == reflect.Uint || typ.Elem().Kind() == reflect.Uint8 || typ.Elem().Kind() == reflect.Uint16 || typ.Elem().Kind() == reflect.Uint32 || typ.Elem().Kind() == reflect.Uint64 || typ.Elem().Kind() == reflect.Uintptr {
             if v.Len() > 0 {
-                if v.Elem(1).(*reflect.UintValue).Overflow(257) {
+                if v.Index(1).OverflowUint(257) {
                     return string(v.Interface().([]byte)), nil
                 }
             }
@@ -1072,25 +1061,25 @@ func valueToString(v reflect.Value) (string, os.Error) {
 }
 
 func containerToString(val reflect.Value, args *vector.StringVector) os.Error {
-    switch v := val.(type) {
-    case *reflect.PtrValue:
+    switch v := val; v.Kind() {
+    case reflect.Ptr:
         return containerToString(reflect.Indirect(v), args)
-    case *reflect.InterfaceValue:
+    case reflect.Interface:
         return containerToString(v.Elem(), args)
-    case *reflect.MapValue:
-        if _, ok := v.Type().(*reflect.MapType).Key().(*reflect.StringType); !ok {
+    case reflect.Map:
+        if v.Type().Key().Kind() != reflect.String {
             return os.NewError("Unsupported type - map key must be a string")
         }
-        for _, k := range v.Keys() {
-            args.Push(k.(*reflect.StringValue).Get())
-            s, err := valueToString(v.Elem(k))
+        for _, k := range v.MapKeys() {
+            args.Push(k.String())
+            s, err := valueToString(v.MapIndex(k))
             if err != nil {
                 return err
             }
             args.Push(s)
         }
-    case *reflect.StructValue:
-        st := v.Type().(*reflect.StructType)
+    case reflect.Struct:
+        st := v.Type()
         for i := 0; i < st.NumField(); i++ {
             ft := st.FieldByIndex([]int{i})
             args.Push(ft.Name)
@@ -1107,7 +1096,7 @@ func containerToString(val reflect.Value, args *vector.StringVector) os.Error {
 func (client *Client) Hmset(key string, mapping interface{}) os.Error {
     args := new(vector.StringVector)
     args.Push(key)
-    err := containerToString(reflect.NewValue(mapping), args)
+    err := containerToString(reflect.ValueOf(mapping), args)
     if err != nil {
         return err
     }
@@ -1180,69 +1169,69 @@ func (client *Client) Hvals(key string) ([][]byte, os.Error) {
 
 func writeTo(data []byte, val reflect.Value) os.Error {
     s := string(data)
-    switch v := val.(type) {
+    switch v := val; v.Kind() {
     // if we're writing to an interace value, just set the byte data
     // TODO: should we support writing to a pointer?
-    case *reflect.InterfaceValue:
-        v.Set(reflect.NewValue(data))
-    case *reflect.BoolValue:
+    case reflect.Interface:
+        v.Set(reflect.ValueOf(data))
+    case reflect.Bool:
         b, err := strconv.Atob(s)
         if err != nil {
             return err
         }
-        v.Set(b)
-    case *reflect.IntValue:
+        v.SetBool(b)
+    case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
         i, err := strconv.Atoi64(s)
         if err != nil {
             return err
         }
-        v.Set(i)
-    case *reflect.UintValue:
+        v.SetInt(i)
+    case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
         ui, err := strconv.Atoui64(s)
         if err != nil {
             return err
         }
-        v.Set(ui)
-    case *reflect.FloatValue:
+        v.SetUint(ui)
+    case reflect.Float32, reflect.Float64:
         f, err := strconv.Atof64(s)
         if err != nil {
             return err
         }
-        v.Set(f)
+        v.SetFloat(f)
 
-    case *reflect.StringValue:
-        v.Set(s)
-    case *reflect.SliceValue:
-        typ := v.Type().(*reflect.SliceType)
-        if _, ok := typ.Elem().(*reflect.UintType); ok {
-            v.Set(reflect.NewValue(data).(*reflect.SliceValue))
+    case reflect.String:
+        v.SetString(s)
+    case reflect.Slice:
+        typ := v.Type()
+        if typ.Elem().Kind() == reflect.Uint || typ.Elem().Kind() == reflect.Uint8 || typ.Elem().Kind() == reflect.Uint16 || typ.Elem().Kind() == reflect.Uint32 || typ.Elem().Kind() == reflect.Uint64 || typ.Elem().Kind() == reflect.Uintptr {
+            v.Set(reflect.ValueOf(data))
         }
     }
     return nil
 }
 
 func writeToContainer(data [][]byte, val reflect.Value) os.Error {
-    switch v := val.(type) {
-    case *reflect.PtrValue:
+    switch v := val; v.Kind() {
+    case reflect.Ptr:
         return writeToContainer(data, reflect.Indirect(v))
-    case *reflect.InterfaceValue:
+    case reflect.Interface:
         return writeToContainer(data, v.Elem())
-    case *reflect.MapValue:
-        if _, ok := v.Type().(*reflect.MapType).Key().(*reflect.StringType); !ok {
+    case reflect.Map:
+        if v.Type().Key().Kind() != reflect.String {
             return os.NewError("Invalid map type")
         }
-        elemtype := v.Type().(*reflect.MapType).Elem()
+        elemtype := v.Type().Elem()
         for i := 0; i < len(data)/2; i++ {
-            mk := reflect.NewValue(string(data[i*2]))
-            mv := reflect.MakeZero(elemtype)
+            mk := reflect.ValueOf(string(data[i*2]))
+            mv := reflect.New(elemtype).Elem()
             writeTo(data[i*2+1], mv)
-            v.SetElem(mk, mv)
+            v.SetMapIndex(mk, mv)
         }
-    case *reflect.StructValue:
+    case reflect.Struct:
         for i := 0; i < len(data)/2; i++ {
             name := string(data[i*2])
             field := v.FieldByName(name)
-            if field == nil {
+            if !field.IsValid() {
                 continue
             }
             writeTo(data[i*2+1], field)
@@ -1264,7 +1253,7 @@ func (client *Client) Hgetall(key string, val interface{}) os.Error {
     if data == nil || len(data) == 0 {
         return RedisError("Key `" + key + "` does not exist")
     }
-    err = writeToContainer(data, reflect.NewValue(val))
+    err = writeToContainer(data, reflect.ValueOf(val))
     if err != nil {
         return err
     }
