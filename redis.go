@@ -184,7 +184,6 @@ func (client *Client) openConnection() (c net.Conn, err os.Error) {
 
 
 func (client *Client) sendCommand(cmd string, args ...string) (data interface{}, err os.Error) {
-
     // grab a connection from the pool
     c, err := client.popCon()
 
@@ -194,7 +193,7 @@ func (client *Client) sendCommand(cmd string, args ...string) (data interface{},
 
     b := commandBytes(cmd, args...)
     data, err = client.rawSend(c, b)
-    if err == os.EOF {
+    if err == os.EOF || err == os.EPIPE {
         c, err = client.openConnection()
         if err != nil {
             goto End
@@ -457,7 +456,6 @@ func (client *Client) Set(key string, val []byte) os.Error {
 
 func (client *Client) Get(key string) ([]byte, os.Error) {
     res, _ := client.sendCommand("GET", key)
-
     if res == nil {
         return nil, RedisError("Key `" + key + "` does not exist")
     }
