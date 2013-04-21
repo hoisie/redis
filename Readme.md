@@ -4,7 +4,7 @@ redis.go is a client for the [redis](http://github.com/antirez/redis) key-value 
 
 Some features include:
 
-* Designed for Redis 1.3.x. 
+* Designed for Redis 2.6.x. 
 * Support for all redis types - strings, lists, sets, sorted sets, and hashes
 * Very simple usage
 * Connection pooling ( with configurable size )
@@ -14,19 +14,30 @@ Some features include:
 
 This library is stable and is used in production environments. However, some commands have not been tested as thoroughly as others. If you find any bugs please file an issue!
 
+# Installation
+
+Just run `go get github.com/hoisie/redis`
+
 ## Examples
 
 Most of the examples connect to a redis database running in the default port -- 6367. 
 
-### Instantiating the client
 
-    //connects to the default port (6379)
-    var client redis.Client 
-     
-    //connects to port 8379, database 13
-    var client2 redis.Client
-    client2.Addr = "127.0.0.1:8379"
-    client2.Db = 13
+### Hello World example
+
+```go
+package main
+
+import "github.com/hoisie/redis"
+
+func main() {
+    var client redis.Client
+    var key = "hello"
+    client.Set(key, []byte("world"))
+    val, _ := client.Get("hello")
+    println(key, string(val))
+}
+```
 
 ### Strings 
 
