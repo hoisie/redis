@@ -1,16 +1,14 @@
 package redis
 
 import (
-    "container/vector"
+    "encoding/json"
     "fmt"
-    "json"
-    "os"
     "reflect"
     "runtime"
     "strconv"
     "strings"
-    "time"
     "testing"
+    "time"
 )
 
 const (
@@ -23,19 +21,19 @@ var client Client
 
 func init() {
     runtime.GOMAXPROCS(2)
-    client.Addr = "127.0.0.1:7379"
+    client.Addr = "127.0.0.1:6379"
     client.Db = 13
 }
 
 func TestBasic(t *testing.T) {
 
     var val []byte
-    var err os.Error
+    var err error
 
     err = client.Set("a", []byte("hello"))
 
     if err != nil {
-        t.Fatal("set failed", err.String())
+        t.Fatal("set failed", err.Error())
     }
 
     if val, err = client.Get("a"); err != nil || string(val) != "hello" {
@@ -62,13 +60,13 @@ func setget(t *testing.T, i int) {
     s := strconv.Itoa(i)
     err := client.Set(s, []byte(s))
     if err != nil {
-        t.Fatal("Concurrent set", err.String())
+        t.Fatal("Concurrent set", err.Error())
     }
 
     s2, err := client.Get(s)
 
     if err != nil {
-        t.Fatal("Concurrent get", err.String())
+        t.Fatal("Concurrent get", err.Error())
     }
 
     if s != string(s2) {
@@ -89,7 +87,7 @@ func TestEmptyGet(t *testing.T) {
     vals, err := client.Mget("a", "b")
 
     if err != nil {
-        t.Fatal(err.String())
+        t.Fatal(err.Error())
     }
     if vals[0] == nil || vals[1] != nil {
         t.Fatal("TestEmptyGet failed")
@@ -102,9 +100,8 @@ func TestConcurrent(t *testing.T) {
     }
 }
 
-
 func TestSet(t *testing.T) {
-    var err os.Error
+    var err error
 
     vals := []string{"a", "b", "c", "d", "e"}
 
@@ -116,7 +113,7 @@ func TestSet(t *testing.T) {
 
     if members, err = client.Smembers("s"); err != nil || len(members) != 5 {
         if err != nil {
-            t.Fatal("Set setup failed", err.String())
+            t.Fatal("Set setup failed", err.Error())
         } else {
             t.Fatalf("Expected %d members but got %d", 5, len(members))
         }
@@ -136,7 +133,7 @@ func TestSet(t *testing.T) {
 
     if members, err = client.Smembers("s"); err != nil || len(members) != 0 {
         if err != nil {
-            t.Fatal("Set setup failed", err.String())
+            t.Fatal("Set setup failed", err.Error())
         } else {
             t.Fatalf("Expected %d members but got %d", 0, len(members))
         }
@@ -145,7 +142,6 @@ func TestSet(t *testing.T) {
     client.Del("s")
 
 }
-
 
 func TestList(t *testing.T) {
     //var err os.Error
@@ -158,7 +154,7 @@ func TestList(t *testing.T) {
 
     if l, err := client.Llen("l"); err != nil || l != 5 {
         if err != nil {
-            t.Fatal("Llen failed", err.String())
+            t.Fatal("Llen failed", err.Error())
         } else {
             t.Fatal("Llen failed, list wrong length", l)
         }
@@ -167,7 +163,7 @@ func TestList(t *testing.T) {
     for i := 0; i < len(vals); i++ {
         if val, err := client.Lindex("l", i); err != nil || string(val) != vals[i] {
             if err != nil {
-                t.Fatal("Lindex failed", err.String())
+                t.Fatal("Lindex failed", err.Error())
             } else {
                 t.Fatalf("Expected %s but got %s", vals[i], string(val))
             }
@@ -176,14 +172,14 @@ func TestList(t *testing.T) {
 
     for i := 0; i < len(vals); i++ {
         if err := client.Lset("l", i, []byte("a")); err != nil {
-            t.Fatal("Lset failed", err.String())
+            t.Fatal("Lset failed", err.Error())
         }
     }
 
     for i := 0; i < len(vals); i++ {
         if val, err := client.Lindex("l", i); err != nil || string(val) != "a" {
             if err != nil {
-                t.Fatal("Lindex failed", err.String())
+                t.Fatal("Lindex failed", err.Error())
             } else {
                 t.Fatalf("Expected %s but got %s", "a", string(val))
             }
@@ -198,12 +194,12 @@ func TestBrpop(t *testing.T) {
     go func() {
         time.Sleep(100 * 1000)
         if err := client.Lpush("l", []byte("a")); err != nil {
-            t.Fatal("Lpush failed", err.String())
+            t.Fatal("Lpush failed", err.Error())
         }
     }()
     key, value, err := client.Brpop([]string{"l"}, 1)
     if err != nil {
-        t.Fatal("Brpop failed", err.String())
+        t.Fatal("Brpop failed", err.Error())
     }
     if *key != "l" {
         t.Fatalf("Expected %s but got %s", "l", *key)
@@ -217,12 +213,12 @@ func TestBlpop(t *testing.T) {
     go func() {
         time.Sleep(100 * 1000)
         if err := client.Lpush("l", []byte("a")); err != nil {
-            t.Fatal("Lpush failed", err.String())
+            t.Fatal("Lpush failed", err.Error())
         }
     }()
     key, value, err := client.Blpop([]string{"l"}, 1)
     if err != nil {
-        t.Fatal("Blpop failed", err.String())
+        t.Fatal("Blpop failed", err.Error())
     }
     if *key != "l" {
         t.Fatalf("Expected %s but got %s", "l", *key)
@@ -235,7 +231,7 @@ func TestBlpop(t *testing.T) {
 func TestBrpopTimeout(t *testing.T) {
     key, value, err := client.Brpop([]string{"l"}, 1)
     if err != nil {
-        t.Fatal("BrpopTimeout failed", err.String())
+        t.Fatal("BrpopTimeout failed", err.Error())
     }
     if key != nil {
         t.Fatalf("Expected nil but got '%s'", *key)
@@ -248,7 +244,7 @@ func TestBrpopTimeout(t *testing.T) {
 func TestBlpopTimeout(t *testing.T) {
     key, value, err := client.Blpop([]string{"l"}, 1)
     if err != nil {
-        t.Fatal("BlpopTimeout failed", err.String())
+        t.Fatal("BlpopTimeout failed", err.Error())
     }
     if key != nil {
         t.Fatalf("Expected nil but got '%s'", *key)
@@ -257,6 +253,7 @@ func TestBlpopTimeout(t *testing.T) {
         t.Fatalf("Expected nil but got '%s'", value)
     }
 }
+
 /*
 
 func TestSubscribe(t *testing.T) {
@@ -450,10 +447,10 @@ func TestPSubscribe(t *testing.T) {
 func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hget
     m1 := make(map[string][]byte)
-    for k, _ := range expected {
+    for k := range expected {
         actual, err := client.Hget(key, k)
         if err != nil {
-            t.Fatal("verifyHash Hget failed", err.String())
+            t.Fatal("verifyHash Hget failed", err.Error())
         }
         m1[k] = actual
     }
@@ -464,7 +461,7 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hkeys
     keys, err := client.Hkeys(key)
     if err != nil {
-        t.Fatal("verifyHash Hkeys failed", err.String())
+        t.Fatal("verifyHash Hkeys failed", err.Error())
     }
     if len(keys) != len(expected) {
         fmt.Printf("%v\n", keys)
@@ -479,7 +476,7 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hvals
     vals, err := client.Hvals(key)
     if err != nil {
-        t.Fatal("verifyHash Hvals failed", err.String())
+        t.Fatal("verifyHash Hvals failed", err.Error())
     }
     if len(vals) != len(expected) {
         t.Fatal("verifyHash Hvals failed")
@@ -489,7 +486,7 @@ func verifyHash(t *testing.T, key string, expected map[string][]byte) {
     //test Hgetall
     err = client.Hgetall(key, m2)
     if err != nil {
-        t.Fatal("verifyHash Hgetall failed", err.String())
+        t.Fatal("verifyHash Hgetall failed", err.Error())
     }
     if !reflect.DeepEqual(m2, expected) {
         t.Fatal("verifyHash Hgetall failed")
@@ -504,11 +501,11 @@ func TestSortedSet(t *testing.T) {
         vals[i] = []byte(svals[i])
         _, err := client.Zadd("zs", vals[i], ranks[i])
         if err != nil {
-            t.Fatal("zdd failed" + err.String())
+            t.Fatal("zdd failed" + err.Error())
         }
         score, err := client.Zscore("zs", vals[i])
         if err != nil {
-            t.Fatal("zscore failed" + err.String())
+            t.Fatal("zscore failed" + err.Error())
         }
         if score != ranks[i] {
             t.Fatal("zscore failed")
@@ -517,7 +514,7 @@ func TestSortedSet(t *testing.T) {
 
     card, err := client.Zcard("zs")
     if err != nil {
-        t.Fatal("zcard failed" + err.String())
+        t.Fatal("zcard failed" + err.Error())
     }
     if card != 5 {
         t.Fatal("zcard failed", card)
@@ -540,7 +537,7 @@ func TestSortedSet(t *testing.T) {
 
         score, err := client.Zscore("zs", vals[i])
         if err != nil {
-            t.Fatal("zscore failed" + err.String())
+            t.Fatal("zscore failed" + err.Error())
         }
         if score != ranks[i]+1 {
             t.Fatal("zscore failed")
@@ -554,22 +551,22 @@ func TestSortedSet(t *testing.T) {
     //clean up
     _, err = client.Zrem("zs", []byte("a"))
     if err != nil {
-        t.Fatal("zrem failed" + err.String())
+        t.Fatal("zrem failed" + err.Error())
     }
 
     _, err = client.Zremrangebyrank("zs", 0, 1)
     if err != nil {
-        t.Fatal("zremrangebynrank failed" + err.String())
+        t.Fatal("zremrangebynrank failed" + err.Error())
     }
 
     _, err = client.Zremrangebyscore("zs", 3, 4)
     if err != nil {
-        t.Fatal("zremrangebyscore failed" + err.String())
+        t.Fatal("zremrangebyscore failed" + err.Error())
     }
 
     card, err = client.Zcard("zs")
     if err != nil {
-        t.Fatal("zcard failed" + err.String())
+        t.Fatal("zcard failed" + err.Error())
     }
     if card != 0 {
         t.Fatal("zcard failed", card)
@@ -611,7 +608,7 @@ func TestHash(t *testing.T) {
     //test Hgetall
     err := client.Hgetall("h3", &test4)
     if err != nil {
-        t.Fatal("verifyHash Hgetall failed", err.String())
+        t.Fatal("verifyHash Hgetall failed", err.Error())
     }
     if !reflect.DeepEqual(test4, test3) {
         t.Fatal("verifyHash Hgetall failed")
@@ -622,7 +619,7 @@ func TestHash(t *testing.T) {
     var test5 tt
     err = client.Hgetall("h3", &test5)
     if err != nil {
-        t.Fatal("verifyHash Hgetall failed", err.String())
+        t.Fatal("verifyHash Hgetall failed", err.Error())
     }
     if !reflect.DeepEqual(test5, test3) {
         t.Fatal("verifyHash Hgetall failed")
@@ -643,7 +640,7 @@ func TestHash(t *testing.T) {
     test7 := make(map[string]interface{})
     err = client.Hgetall("h4", &test7)
     if err != nil {
-        t.Fatal("verifyHash Hgetall failed", err.String())
+        t.Fatal("verifyHash Hgetall failed", err.Error())
     }
     if !reflect.DeepEqual(test6, test7) {
         t.Fatal("verifyHash Hgetall failed")
@@ -665,9 +662,9 @@ func BenchmarkMultipleGet(b *testing.B) {
 
 func BenchmarkMGet(b *testing.B) {
     client.Set("bmg", []byte("hi"))
-    var vals vector.StringVector
+    var vals []string
     for i := 0; i < b.N; i++ {
-        vals.Push("bmg")
+        vals = append(vals, "bmg")
     }
     client.Mget(vals...)
     client.Del("bmg")
@@ -720,9 +717,9 @@ func BenchmarkJsonMget(b *testing.B) {
     od, _ := json.Marshal(testObj)
     client.Set("tjs", od)
 
-    var vals vector.StringVector
+    var vals []string
     for i := 0; i < b.N; i++ {
-        vals.Push("tjs")
+        vals = append(vals, "tjs")
     }
 
     data, _ := client.Mget(vals...)
