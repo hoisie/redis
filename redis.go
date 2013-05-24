@@ -216,6 +216,7 @@ func (client *Client) sendCommands(cmdArgs <-chan []string, data chan<- interfac
     var reader *bufio.Reader
     var pong interface{}
     var errs chan error
+    var errsClosed = false
 
     if err != nil {
         goto End
@@ -251,23 +252,33 @@ func (client *Client) sendCommands(cmdArgs <-chan []string, data chan<- interfac
         for cmdArg := range cmdArgs {
             err = writeRequest(c, cmdArg[0], cmdArg[1:]...)
             if err != nil {
-                errs <- err
+                if !errsClosed {
+                    errs <- err
+                }
                 break
             }
         }
-        close(errs)
+        if !errsClosed {
+            errsClosed = true
+            close(errs)
+        }
     }()
 
     go func() {
         for {
             response, err := readResponse(reader)
             if err != nil {
-                errs <- err
+                if !errsClosed {
+                    errs <- err
+                }
                 break
             }
             data <- response
         }
-        close(errs)
+        if !errsClosed {
+            errsClosed = true
+            close(errs)
+        }
     }()
 
     // Block until errs channel closes
