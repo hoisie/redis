@@ -76,9 +76,10 @@ func writeRequest(writer io.Writer, cmd string, args ...string) error {
 }
 
 func commandBytes(cmd string, args ...string) []byte {
-    cmdbuf := bytes.NewBufferString(fmt.Sprintf("*%d\r\n$%d\r\n%s\r\n", len(args)+1, len(cmd), cmd))
+    var cmdbuf bytes.Buffer
+    fmt.Fprintf(&cmdbuf, "*%d\r\n$%d\r\n%s\r\n", len(args)+1, len(cmd), cmd)
     for _, s := range args {
-        cmdbuf.WriteString(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s))
+        fmt.Fprintf(&cmdbuf, "$%d\r\n%s\r\n", len(s), s)
     }
     return cmdbuf.Bytes()
 }
