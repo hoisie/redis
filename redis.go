@@ -14,15 +14,16 @@ import (
 )
 
 const (
-    MaxPoolSize = 5
+    defaultPoolSize = 5
 )
 
 var defaultAddr = "127.0.0.1:6379"
 
 type Client struct {
-    Addr     string
-    Db       int
-    Password string
+    Addr        string
+    Db          int
+    Password    string
+    MaxPoolSize int
     //the connection pool
     pool chan net.Conn
 }
@@ -289,8 +290,12 @@ End:
 
 func (client *Client) popCon() (net.Conn, error) {
     if client.pool == nil {
-        client.pool = make(chan net.Conn, MaxPoolSize)
-        for i := 0; i < MaxPoolSize; i++ {
+        poolSize := client.MaxPoolSize
+        if poolSize == 0 {
+            poolSize = defaultPoolSize
+        }
+        client.pool = make(chan net.Conn, poolSize)
+        for i := 0; i < poolSize; i++ {
             //add dummy values to the pool
             client.pool <- nil
         }
