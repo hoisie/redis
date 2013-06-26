@@ -170,6 +170,15 @@ func (client *Client) openConnection() (c net.Conn, err error) {
     if err != nil {
         return
     }
+    
+    //handle authentication here authored by @shxsun
+    if client.Password != "" {
+        cmd := fmt.Sprintf("AUTH %s\r\n", client.Password)
+        _, err = client.rawSend(c, []byte(cmd))
+        if err != nil {
+            return
+        }
+    }
 
     if client.Db != 0 {
         cmd := fmt.Sprintf("SELECT %d\r\n", client.Db)
@@ -178,7 +187,6 @@ func (client *Client) openConnection() (c net.Conn, err error) {
             return
         }
     }
-    //TODO: handle authentication here
 
     return
 }
