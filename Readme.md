@@ -40,15 +40,15 @@ func main() {
 ```
 
 ### Strings 
-
+```go
     var client redis.Client
     client.Set("a", []byte("hello"))
     val, _ := client.Get("a")
     println(string(val))
     client.Del("a")
-
+```
 ### Lists
-
+```go
     var client redis.Client
     vals := []string{"a", "b", "c", "d", "e"}
     for _, v := range vals {
@@ -59,8 +59,9 @@ func main() {
         println(i,":",string(v))
     }
     client.Del("l")
-
+```
 ### Publish/Subscribe
+```go
     sub := make(chan string, 1)
     sub <- "foo"
     messages := make(chan Message, 0)
@@ -74,7 +75,7 @@ func main() {
 
     close(sub)
     close(messages)
-
+```
 
 More examples coming soon. See `redis_test.go` for more usage examples.
 
