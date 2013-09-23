@@ -170,7 +170,7 @@ func (client *Client) openConnection() (c net.Conn, err error) {
     if err != nil {
         return
     }
-    
+
     //handle authentication here authored by @shxsun
     if client.Password != "" {
         cmd := fmt.Sprintf("AUTH %s\r\n", client.Password)
@@ -974,6 +974,24 @@ func (client *Client) Zrangebyscore(key string, start float64, end float64) ([][
     }
 
     return res.([][]byte), nil
+}
+
+func (client *Client) Zcount(key string, min float64, max float64) (int, error) {
+	res, err := client.sendCommand("ZCOUNT", key, strconv.FormatFloat(min, 'f', -1, 64), strconv.FormatFloat(max, 'f', -1, 64))
+	if err != nil {
+		return 0, err
+	}
+
+	return int(res.(int64)), nil
+}
+
+func (client *Client) ZcountAll(key string) (int, error) {
+	res, err := client.sendCommand("ZCOUNT", key, "-INF", "+INF")
+	if err != nil {
+		return 0, err
+	}
+
+	return int(res.(int64)), nil
 }
 
 func (client *Client) Zcard(key string) (int, error) {
