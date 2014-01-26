@@ -20,7 +20,7 @@ Just run `go get github.com/hoisie/redis`
 
 ## Examples
 
-Most of the examples connect to a redis database running in the default port -- 6367. 
+Most of the examples connect to a redis database running in the default port -- 6379. 
 
 
 ### Hello World example
