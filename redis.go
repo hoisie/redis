@@ -1132,6 +1132,19 @@ func (client *Client) Hmset(key string, mapping interface{}) error {
     return nil
 }
 
+func (client *Client) Hmget(key string, fields ...string) ([][]byte, error) {
+    var args []string
+    args = append(args, key)
+    for _, field := range fields {
+        args = append(args, field)
+    }
+    res, err := client.sendCommand("HMGET", args...)
+    if err != nil {
+        return nil, err
+    }
+    return res.([][]byte), nil
+}
+
 func (client *Client) Hincrby(key string, field string, val int64) (int64, error) {
     res, err := client.sendCommand("HINCRBY", key, field, strconv.FormatInt(val, 10))
     if err != nil {
