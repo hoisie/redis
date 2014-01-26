@@ -624,6 +624,16 @@ func (client *Client) Substr(key string, start int, end int) ([]byte, error) {
     return data, nil
 }
 
+func (client *Client) Strlen(key string) (int, error) {
+    res, err := client.sendCommand("STRLEN", key)
+    if err != nil {
+        return -1, err
+    }
+
+    return int(res.(int64)), nil
+}
+
+
 // List commands
 
 func (client *Client) Rpush(key string, val []byte) error {
