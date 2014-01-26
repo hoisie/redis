@@ -701,12 +701,11 @@ func (client *Client) Lset(key string, index int, value []byte) error {
     return nil
 }
 
-func (client *Client) Lrem(key string, index int) (int, error) {
-    res, err := client.sendCommand("LREM", key, strconv.Itoa(index))
+func (client *Client) Lrem(key string, count int, value []byte) (int, error) {
+    res, err := client.sendCommand("LREM", key, strconv.Itoa(count), string(value))
     if err != nil {
         return -1, err
     }
-
     return int(res.(int64)), nil
 }
 

@@ -144,8 +144,7 @@ func TestSet(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-    //var err os.Error
-
+    client.Del("l")
     vals := []string{"a", "b", "c", "d", "e"}
 
     for _, v := range vals {
@@ -185,9 +184,32 @@ func TestList(t *testing.T) {
             }
         }
     }
-
     client.Del("l")
+}
 
+func TestLrem(t *testing.T) {
+    client.Del("l")
+    vals := []string{"a", "b", "a"}
+
+    for _, v := range vals {
+        client.Rpush("l", []byte(v))
+    }
+
+    num, err := client.Lrem("l", 2, []byte("a"))
+
+    if err != nil {
+        t.Fatal("Lrem failed %v", err.Error())
+    } else if num != 2 {
+        t.Fatal("Lrem failed, got %d, expected 2", num)
+    }
+
+    length, err := client.Llen("l")
+    if err != nil {
+        t.Fatal("Llen failed", err.Error())
+    } else if length != 1 {
+        t.Fatal("Llen failed, got %v, expected 1", length)
+    }
+    client.Del("l")
 }
 
 func TestBrpop(t *testing.T) {
