@@ -674,6 +674,20 @@ func TestHash(t *testing.T) {
     client.Del("h4")
 }
 
+func TestHmset(t *testing.T) {
+    m := make(map[string][]byte)
+    m["foo"] = []byte("1")
+    client.Hmset("f", m)
+    data,err := client.Hmget("f", "foo")
+    if err != nil {
+        t.Fatal("Hmset failed", err.Error())
+    }
+    if string(data[0][0]) != "1" {
+        t.Fatalf("Expected 1, got %s", string(data[0][0]));
+    }
+    client.Del("foo")
+}
+
 func BenchmarkMultipleGet(b *testing.B) {
     client.Set("bmg", []byte("hi"))
     for i := 0; i < b.N; i++ {

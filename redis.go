@@ -1103,7 +1103,7 @@ func valueToString(v reflect.Value) (string, error) {
         typ := v.Type()
         if typ.Elem().Kind() == reflect.Uint || typ.Elem().Kind() == reflect.Uint8 || typ.Elem().Kind() == reflect.Uint16 || typ.Elem().Kind() == reflect.Uint32 || typ.Elem().Kind() == reflect.Uint64 || typ.Elem().Kind() == reflect.Uintptr {
             if v.Len() > 0 {
-                if v.Index(1).OverflowUint(257) {
+                if v.Index(0).OverflowUint(257) {
                     return string(v.Interface().([]byte)), nil
                 }
             }
